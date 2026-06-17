@@ -52,6 +52,12 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-https://clahanlabs.com}
       GUACAMOLE_PUBLIC_URL: ${GUACAMOLE_PUBLIC_URL:-/guacamole}
+      GUACAMOLE_SYNC_ENABLED: ${GUACAMOLE_SYNC_ENABLED:-true}
+      GUACAMOLE_MYSQL_HOST: guacamole-db
+      GUACAMOLE_MYSQL_PORT: 3306
+      GUACAMOLE_MYSQL_DATABASE: ${GUACAMOLE_MYSQL_DATABASE:-guacamole_db}
+      GUACAMOLE_MYSQL_USER: ${GUACAMOLE_MYSQL_USER:-guacamole_user}
+      GUACAMOLE_MYSQL_PASSWORD: ${GUACAMOLE_MYSQL_PASSWORD:-change-guacamole-user-password}
     volumes:
       - backend-data:/app/data
     expose:

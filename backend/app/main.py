@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import pymysql
 from fastapi import Cookie, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -57,6 +58,10 @@ class AssignVmRequest(BaseModel):
     vmId: str | None = None
 
 
+class ResetUserPasswordRequest(BaseModel):
+    password: str = Field(min_length=8, max_length=256)
+
+
 class VmSummary(BaseModel):
     id: str
     name: str
@@ -74,6 +79,11 @@ class UserSummary(BaseModel):
     vmId: str | None
     vmName: str | None
     createdAt: int
+
+
+class GuacamoleSyncSummary(BaseModel):
+    enabled: bool
+    status: str
 
 
 class SessionSummary(BaseModel):
@@ -152,6 +162,204 @@ def verify_password(password: str, stored_hash: str) -> bool:
     expected = b64url_decode(digest_text)
     actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, int(iterations_text))
     return hmac.compare_digest(expected, actual)
+
+
+def guacamole_sync_enabled() -> bool:
+    return os.getenv("GUACAMOLE_SYNC_ENABLED", "false").lower() == "true"
+
+
+def connect_guacamole_db() -> pymysql.connections.Connection:
+    return pymysql.connect(
+        host=os.getenv("GUACAMOLE_MYSQL_HOST", "127.0.0.1"),
+        port=int(os.getenv("GUACAMOLE_MYSQL_PORT", "3306")),
+        user=os.getenv("GUACAMOLE_MYSQL_USER", "guacamole_user"),
+        password=os.getenv("GUACAMOLE_MYSQL_PASSWORD", ""),
+        database=os.getenv("GUACAMOLE_MYSQL_DATABASE", "guacamole_db"),
+        charset="utf8mb4",
+        autocommit=False,
+        cursorclass=pymysql.cursors.DictCursor,
+    )
+
+
+def hash_guacamole_password(password: str) -> tuple[bytes, bytes]:
+    salt = secrets.token_bytes(32)
+    digest = hashlib.sha256(password.encode("utf-8") + salt).digest()
+    return digest, salt
+
+
+def ensure_guacamole_user(cursor: pymysql.cursors.Cursor, username: str, password: str) -> int:
+    cursor.execute(
+        "SELECT entity_id FROM guacamole_entity WHERE name = %s AND type = 'USER'",
+        (username,),
+    )
+    entity = cursor.fetchone()
+    if entity:
+        entity_id = int(entity["entity_id"])
+    else:
+        cursor.execute(
+            "INSERT INTO guacamole_entity (name, type) VALUES (%s, 'USER')",
+            (username,),
+        )
+        entity_id = int(cursor.lastrowid)
+
+    password_hash, password_salt = hash_guacamole_password(password)
+    cursor.execute(
+        """
+        INSERT INTO guacamole_user (entity_id, password_hash, password_salt, password_date, disabled, expired)
+        VALUES (%s, %s, %s, UTC_TIMESTAMP(), 0, 0)
+        ON DUPLICATE KEY UPDATE
+            password_hash = VALUES(password_hash),
+            password_salt = VALUES(password_salt),
+            password_date = UTC_TIMESTAMP(),
+            disabled = 0,
+            expired = 0
+        """,
+        (entity_id, password_hash, password_salt),
+    )
+    return entity_id
+
+
+def ensure_guacamole_connection(cursor: pymysql.cursors.Cursor, vm: VmSummary) -> int:
+    cursor.execute(
+        "SELECT connection_id FROM guacamole_connection WHERE connection_name = %s",
+        (vm.guacamoleConnectionId,),
+    )
+    connection = cursor.fetchone()
+    if connection:
+        connection_id = int(connection["connection_id"])
+        cursor.execute(
+            "UPDATE guacamole_connection SET protocol = %s WHERE connection_id = %s",
+            (vm.protocol.lower(), connection_id),
+        )
+    else:
+        cursor.execute(
+            "INSERT INTO guacamole_connection (connection_name, protocol) VALUES (%s, %s)",
+            (vm.guacamoleConnectionId, vm.protocol.lower()),
+        )
+        connection_id = int(cursor.lastrowid)
+
+    params = {
+        "hostname": vm.host,
+        "port": "3389" if vm.protocol.lower() == "rdp" else "",
+        "security": "any",
+        "ignore-cert": "true",
+    }
+    for name, value in params.items():
+        if not value:
+            continue
+        cursor.execute(
+            """
+            INSERT INTO guacamole_connection_parameter (connection_id, parameter_name, parameter_value)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE parameter_value = VALUES(parameter_value)
+            """,
+            (connection_id, name, value),
+        )
+
+    return connection_id
+
+
+def grant_guacamole_connection(cursor: pymysql.cursors.Cursor, entity_id: int, connection_id: int) -> None:
+    cursor.execute(
+        """
+        INSERT IGNORE INTO guacamole_connection_permission (entity_id, connection_id, permission)
+        VALUES (%s, %s, 'READ')
+        """,
+        (entity_id, connection_id),
+    )
+
+
+def revoke_guacamole_connection(cursor: pymysql.cursors.Cursor, entity_id: int, connection_id: int) -> None:
+    cursor.execute(
+        """
+        DELETE FROM guacamole_connection_permission
+        WHERE entity_id = %s AND connection_id = %s AND permission = 'READ'
+        """,
+        (entity_id, connection_id),
+    )
+
+
+def sync_guacamole_user_mapping(username: str, password: str, vm: VmSummary | None, is_admin: bool) -> None:
+    if not guacamole_sync_enabled():
+        return
+
+    with connect_guacamole_db() as guac_db:
+        with guac_db.cursor() as cursor:
+            entity_id = ensure_guacamole_user(cursor, username, password)
+            if vm:
+                connection_id = ensure_guacamole_connection(cursor, vm)
+                grant_guacamole_connection(cursor, entity_id, connection_id)
+
+            if is_admin:
+                cursor.execute("SELECT connection_id FROM guacamole_connection")
+                for row in cursor.fetchall():
+                    grant_guacamole_connection(cursor, entity_id, int(row["connection_id"]))
+
+        guac_db.commit()
+
+
+def sync_guacamole_assignment(username: str, vm: VmSummary | None, is_admin: bool) -> None:
+    if not guacamole_sync_enabled() or not vm:
+        return
+
+    with connect_guacamole_db() as guac_db:
+        with guac_db.cursor() as cursor:
+            cursor.execute(
+                "SELECT entity_id FROM guacamole_entity WHERE name = %s AND type = 'USER'",
+                (username,),
+            )
+            entity = cursor.fetchone()
+            if not entity:
+                return
+            entity_id = int(entity["entity_id"])
+            connection_id = ensure_guacamole_connection(cursor, vm)
+            grant_guacamole_connection(cursor, entity_id, connection_id)
+            if not is_admin:
+                cursor.execute(
+                    """
+                    DELETE cp FROM guacamole_connection_permission cp
+                    JOIN guacamole_connection c ON c.connection_id = cp.connection_id
+                    WHERE cp.entity_id = %s
+                      AND cp.permission = 'READ'
+                      AND c.connection_name <> %s
+                    """,
+                    (entity_id, vm.guacamoleConnectionId),
+                )
+        guac_db.commit()
+
+
+def sync_guacamole_connection_admin_permissions(admin_usernames: list[str], vm: VmSummary) -> None:
+    if not guacamole_sync_enabled():
+        return
+
+    with connect_guacamole_db() as guac_db:
+        with guac_db.cursor() as cursor:
+            connection_id = ensure_guacamole_connection(cursor, vm)
+            for username in admin_usernames:
+                cursor.execute(
+                    "SELECT entity_id FROM guacamole_entity WHERE name = %s AND type = 'USER'",
+                    (username,),
+                )
+                entity = cursor.fetchone()
+                if entity:
+                    grant_guacamole_connection(cursor, int(entity["entity_id"]), connection_id)
+        guac_db.commit()
+
+
+def vm_assigned_to_other_non_admin(db: sqlite3.Connection, vm_id: str, username: str | None = None) -> sqlite3.Row | None:
+    if username:
+        return db.execute(
+            """
+            SELECT username FROM users
+            WHERE vm_id = ? AND is_admin = 0 AND username <> ?
+            LIMIT 1
+            """,
+            (vm_id, username),
+        ).fetchone()
+    return db.execute(
+        "SELECT username FROM users WHERE vm_id = ? AND is_admin = 0 LIMIT 1",
+        (vm_id,),
+    ).fetchone()
 
 
 def init_db() -> None:
@@ -362,6 +570,7 @@ def setup_admin(request: SetupAdminRequest, response: Response) -> SessionSummar
             (request.username, hash_password(request.password), now()),
         )
         user = db.execute("SELECT * FROM users WHERE username = ?", (request.username,)).fetchone()
+        sync_guacamole_user_mapping(request.username, request.password, None, True)
         return issue_session(db, user, response)
 
 
@@ -440,6 +649,13 @@ def create_user(
     try:
         if request.vmId and not get_vm(db, request.vmId):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="VM does not exist")
+        if request.vmId and not request.isAdmin:
+            assigned = vm_assigned_to_other_non_admin(db, request.vmId)
+            if assigned:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"VM is already assigned to user {assigned['username']}",
+                )
         try:
             db.execute(
                 """
@@ -451,6 +667,8 @@ def create_user(
         except sqlite3.IntegrityError as exc:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already exists") from exc
         db.commit()
+        vm = get_vm(db, request.vmId)
+        sync_guacamole_user_mapping(request.username, request.password, vm, request.isAdmin)
         row = db.execute(
             """
             SELECT users.id, users.username, users.is_admin, users.vm_id, users.created_at, vms.name AS vm_name
@@ -478,12 +696,61 @@ def assign_user_vm(
 ) -> UserSummary:
     db, _, _ = require_admin(session_token)
     try:
+        user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         if request.vmId and not get_vm(db, request.vmId):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="VM does not exist")
+        if request.vmId and not user["is_admin"]:
+            assigned = vm_assigned_to_other_non_admin(db, request.vmId, username)
+            if assigned:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"VM is already assigned to user {assigned['username']}",
+                )
         cursor = db.execute("UPDATE users SET vm_id = ? WHERE username = ?", (request.vmId, username))
         if cursor.rowcount == 0:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         db.commit()
+        vm = get_vm(db, request.vmId)
+        sync_guacamole_assignment(username, vm, bool(user["is_admin"]))
+        row = db.execute(
+            """
+            SELECT users.id, users.username, users.is_admin, users.vm_id, users.created_at, vms.name AS vm_name
+            FROM users
+            LEFT JOIN vms ON users.vm_id = vms.id
+            WHERE users.username = ?
+            """,
+            (username,),
+        ).fetchone()
+        return UserSummary(
+            id=row["id"],
+            username=row["username"],
+            isAdmin=bool(row["is_admin"]),
+            vmId=row["vm_id"],
+            vmName=row["vm_name"],
+            createdAt=row["created_at"],
+        )
+    finally:
+        db.close()
+
+
+@app.put("/api/admin/users/{username}/password", response_model=UserSummary)
+def reset_user_password(
+    username: str, request: ResetUserPasswordRequest, session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE)
+) -> UserSummary:
+    db, _, _ = require_admin(session_token)
+    try:
+        user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        db.execute(
+            "UPDATE users SET password_hash = ? WHERE username = ?",
+            (hash_password(request.password), username),
+        )
+        db.commit()
+        vm = get_vm(db, user["vm_id"])
+        sync_guacamole_user_mapping(username, request.password, vm, bool(user["is_admin"]))
         row = db.execute(
             """
             SELECT users.id, users.username, users.is_admin, users.vm_id, users.created_at, vms.name AS vm_name
@@ -545,6 +812,9 @@ def create_vm(
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="VM already exists") from exc
         db.commit()
         row = db.execute("SELECT * FROM vms WHERE id = ?", (request.id,)).fetchone()
-        return row_to_vm(row)
+        vm = row_to_vm(row)
+        admin_rows = db.execute("SELECT username FROM users WHERE is_admin = 1").fetchall()
+        sync_guacamole_connection_admin_permissions([admin["username"] for admin in admin_rows], vm)
+        return vm
     finally:
         db.close()

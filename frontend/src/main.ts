@@ -193,36 +193,57 @@ function renderSession(session: SessionSummary): void {
   startHeartbeat();
   const vm = session.vm;
   renderShell(`
-    <div class="session-header">
-      <div>
-        <p class="eyebrow">Connected user</p>
-        <h2>${escapeHtml(session.username)}</h2>
+    <div class="dashboard">
+      <div class="dashboard-topbar">
+        <div>
+          <p class="eyebrow">Workspace</p>
+          <h2>${escapeHtml(session.username)}</h2>
+        </div>
+        <div class="actions compact-actions">
+          ${session.isAdmin ? `<button id="admin-button" class="secondary-button" type="button">Admin</button>` : ""}
+          <button id="logout-button" class="secondary-button" type="button">Logout</button>
+        </div>
       </div>
-      <div class="actions compact-actions">
-        ${session.isAdmin ? `<button id="admin-button" class="secondary-button" type="button">Admin</button>` : ""}
-        <button id="logout-button" class="secondary-button" type="button">Logout</button>
-      </div>
-    </div>
 
-    <div class="vm-card">
-      <div>
-        <p class="eyebrow">${vm ? "Assigned VM" : "No VM assigned"}</p>
-        <h3>${escapeHtml(vm?.name ?? "Ask an admin to assign a VM")}</h3>
-      </div>
-      <dl>
-        <div><dt>Host</dt><dd>${escapeHtml(vm?.host ?? "-")}</dd></div>
-        <div><dt>Protocol</dt><dd>${escapeHtml(vm?.protocol?.toUpperCase() ?? "-")}</dd></div>
-        <div><dt>Status</dt><dd>${escapeHtml(vm?.status ?? "-")}</dd></div>
-        <div><dt>Max session</dt><dd>${formatTime(session.expiresAt)}</dd></div>
-        <div><dt>Idle timeout</dt><dd>${formatTime(session.idleExpiresAt)}</dd></div>
-      </dl>
-      <div class="actions">
-        ${
-          vm
-            ? `<a class="primary-link" href="${escapeHtml(vm.guacamoleLaunchUrl)}" target="_blank" rel="noreferrer">Open VM Session</a>`
-            : ""
-        }
-        <button id="refresh-button" class="secondary-button" type="button">Refresh</button>
+      <div class="dashboard-grid">
+        <section class="primary-panel">
+          <div>
+            <p class="eyebrow">${vm ? "Assigned VM" : "No VM assigned"}</p>
+            <h3>${escapeHtml(vm?.name ?? "Waiting for assignment")}</h3>
+            <p class="muted">${vm ? "Your remote desktop is ready through Apache Guacamole." : "An admin needs to map your account to a VM before you can connect."}</p>
+          </div>
+
+          <dl class="detail-grid">
+            <div><dt>Host</dt><dd>${escapeHtml(vm?.host ?? "-")}</dd></div>
+            <div><dt>Protocol</dt><dd>${escapeHtml(vm?.protocol?.toUpperCase() ?? "-")}</dd></div>
+            <div><dt>Status</dt><dd>${escapeHtml(vm?.status ?? "-")}</dd></div>
+            <div><dt>Connection</dt><dd>${escapeHtml(vm?.guacamoleConnectionId ?? "-")}</dd></div>
+          </dl>
+
+          <div class="actions">
+            ${
+              vm
+                ? `<a class="primary-link" href="${escapeHtml(vm.guacamoleLaunchUrl)}" target="_blank" rel="noreferrer">Open VM Session</a>`
+                : ""
+            }
+            <button id="refresh-button" class="secondary-button" type="button">Refresh</button>
+          </div>
+        </section>
+
+        <aside class="side-panel">
+          <div>
+            <p class="eyebrow">Session</p>
+            <dl class="stacked-details">
+              <div><dt>Role</dt><dd>${session.isAdmin ? "Admin" : "User"}</dd></div>
+              <div><dt>Max session</dt><dd>${formatTime(session.expiresAt)}</dd></div>
+              <div><dt>Idle timeout</dt><dd>${formatTime(session.idleExpiresAt)}</dd></div>
+            </dl>
+          </div>
+          <div>
+            <p class="eyebrow">Access policy</p>
+            <p class="muted">A VM can be mapped to one regular user at a time. Admin users can manage and inspect mappings.</p>
+          </div>
+        </aside>
       </div>
     </div>
   `);
@@ -249,6 +270,9 @@ async function renderAdmin(message = ""): Promise<void> {
       `<option value="">No VM</option>`,
       ...vms.map((vm) => `<option value="${escapeHtml(vm.id)}">${escapeHtml(vm.name)} (${escapeHtml(vm.host)})</option>`),
     ].join("");
+    const userOptions = users
+      .map((user) => `<option value="${escapeHtml(user.username)}">${escapeHtml(user.username)}</option>`)
+      .join("");
 
     renderShell(`
       <div class="admin-panel">
@@ -269,6 +293,13 @@ async function renderAdmin(message = ""): Promise<void> {
           <label>VM<select name="vmId">${vmOptions}</select></label>
           <label class="check-row"><input name="isAdmin" type="checkbox" /> Admin user</label>
           <button type="submit">Create user</button>
+        </form>
+
+        <form id="reset-password-form" class="admin-form">
+          <h3>Reset password and sync Guacamole</h3>
+          <label>User<select name="username" required>${userOptions}</select></label>
+          <label>New password<input name="password" type="password" minlength="8" required /></label>
+          <button type="submit">Reset and sync</button>
         </form>
 
         <div class="table-wrap">
@@ -314,34 +345,59 @@ async function renderAdmin(message = ""): Promise<void> {
     document.querySelector<HTMLFormElement>("#create-user-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget as HTMLFormElement);
-      await api("/api/admin/users", {
-        method: "POST",
-        body: JSON.stringify({
-          username: form.get("username"),
-          password: form.get("password"),
-          vmId: form.get("vmId") || null,
-          isAdmin: form.get("isAdmin") === "on",
-        }),
-      });
-      await renderAdmin("User created.");
+      try {
+        await api("/api/admin/users", {
+          method: "POST",
+          body: JSON.stringify({
+            username: form.get("username"),
+            password: form.get("password"),
+            vmId: form.get("vmId") || null,
+            isAdmin: form.get("isAdmin") === "on",
+          }),
+        });
+        await renderAdmin("User created and synced to Guacamole.");
+      } catch (error) {
+        await renderAdmin(error instanceof Error ? error.message : "User creation failed.");
+      }
+    });
+
+    document.querySelector<HTMLFormElement>("#reset-password-form")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget as HTMLFormElement);
+      const username = String(form.get("username") ?? "");
+      try {
+        await api(`/api/admin/users/${encodeURIComponent(username)}/password`, {
+          method: "PUT",
+          body: JSON.stringify({
+            password: form.get("password"),
+          }),
+        });
+        await renderAdmin("Password reset and Guacamole sync completed.");
+      } catch (error) {
+        await renderAdmin(error instanceof Error ? error.message : "Password reset failed.");
+      }
     });
 
     document.querySelector<HTMLFormElement>("#create-vm-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget as HTMLFormElement);
-      await api("/api/admin/vms", {
-        method: "POST",
-        body: JSON.stringify({
-          id: form.get("id"),
-          name: form.get("name"),
-          host: form.get("host"),
-          protocol: "rdp",
-          status: "manual-ready",
-          guacamoleConnectionId: form.get("guacamoleConnectionId"),
-          guacamoleLaunchUrl: form.get("guacamoleLaunchUrl") || null,
-        }),
-      });
-      await renderAdmin("VM registered.");
+      try {
+        await api("/api/admin/vms", {
+          method: "POST",
+          body: JSON.stringify({
+            id: form.get("id"),
+            name: form.get("name"),
+            host: form.get("host"),
+            protocol: "rdp",
+            status: "manual-ready",
+            guacamoleConnectionId: form.get("guacamoleConnectionId"),
+            guacamoleLaunchUrl: form.get("guacamoleLaunchUrl") || null,
+          }),
+        });
+        await renderAdmin("VM registered and synced to Guacamole.");
+      } catch (error) {
+        await renderAdmin(error instanceof Error ? error.message : "VM registration failed.");
+      }
     });
   } catch (error) {
     renderLogin(error instanceof Error ? error.message : "Admin access failed");

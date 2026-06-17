@@ -15,6 +15,15 @@ Lightweight VM access gateway:
 5. FastAPI returns the VM mapped to that user.
 6. The UI shows the assigned VM and opens the configured Guacamole URL.
 
+When `GUACAMOLE_SYNC_ENABLED=true`, admin actions also sync into the Guacamole MySQL database:
+
+- Creating an app user creates a matching Guacamole user with the same username/password.
+- Mapping a VM grants that Guacamole user access to the matching Guacamole connection.
+- A VM can be mapped to only one regular user at a time.
+- Admin users can be granted access to all registered Guacamole connections.
+
+Existing users created before Guacamole sync can be updated from the Admin dashboard with **Reset password and sync Guacamole**.
+
 ## Session Policy
 
 - Max session duration: 4 hours.

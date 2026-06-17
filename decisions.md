@@ -128,6 +128,12 @@ The `vms` table should store:
 
 For now, manually create VMs in Azure and register them in the database. Admin users can create application users and map each user to a fixed VM. Later, add Azure SDK automation to provision, tag, start, stop, and assign VMs dynamically.
 
+Application-level VM mapping rule:
+
+- One non-admin user per VM.
+- Admin users may inspect/manage connections.
+- App user creation and password reset should sync matching Guacamole users and permissions when Guacamole DB sync is enabled.
+
 ## Guacamole Integration Decision
 
 Use Guacamole as the primary remote access gateway.

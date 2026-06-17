@@ -69,6 +69,8 @@ Credentials and user-to-VM mappings should be stored in SQLite for now, not hard
 
 Guacamole direct client URLs should not be guessed from VM names. The app should open `/guacamole/` by default unless an admin provides a known-good Guacamole launch URL.
 
+Guacamole DB sync is now planned/implemented in the backend: creating/resetting an app user can create a matching Guacamole user with the same credentials, create/update the Guacamole connection, and grant connection permission. Regular VMs should be assigned to only one non-admin user at a time.
+
 ## Deployment Direction
 
 Docker Compose has been added for Azure VM deployment:
