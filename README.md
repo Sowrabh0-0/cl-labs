@@ -32,6 +32,8 @@ Credentials are stored in SQLite as PBKDF2 password hashes. They are not hardcod
 - Confirm the real Guacamole launch URL format for each connection.
 - Confirm whether Guacamole should be embedded later or opened in a new tab.
 
+Current behavior opens `/guacamole/` by default. Direct Guacamole client URLs are not guessed because Guacamole does not use the raw VM name as the `/#/client/...` identifier.
+
 ## Run Backend
 
 ```bash

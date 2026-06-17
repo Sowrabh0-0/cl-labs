@@ -217,7 +217,7 @@ def init_db() -> None:
 
 def row_to_vm(row: sqlite3.Row) -> VmSummary:
     guacamole_base_url = os.getenv("GUACAMOLE_PUBLIC_URL", "").rstrip("/")
-    fallback_url = f"{guacamole_base_url}/#/client/{row['guacamole_connection_id']}" if guacamole_base_url else ""
+    fallback_url = f"{guacamole_base_url}/" if guacamole_base_url else ""
     return VmSummary(
         id=row["id"],
         name=row["name"],

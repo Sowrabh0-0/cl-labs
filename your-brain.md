@@ -67,6 +67,8 @@ Created first application scaffold:
 
 Credentials and user-to-VM mappings should be stored in SQLite for now, not hardcoded in the codebase. Admin users can create users, mark users as admins, register VMs, and map users to fixed VMs.
 
+Guacamole direct client URLs should not be guessed from VM names. The app should open `/guacamole/` by default unless an admin provides a known-good Guacamole launch URL.
+
 ## Deployment Direction
 
 Docker Compose has been added for Azure VM deployment:

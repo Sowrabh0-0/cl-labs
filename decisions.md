@@ -149,6 +149,8 @@ Recommendation:
 - MVP: use Guacamole's database auth extension and let FastAPI manage mapping records.
 - Later: consider a custom Guacamole auth extension if the login flow must be completely seamless.
 
+For the current MVP, the app should launch `/guacamole/` unless an exact Guacamole launch URL is provided by an admin. Do not synthesize `/#/client/{vm_name}` URLs from raw VM names; Guacamole client identifiers require Guacamole-specific encoding/session context.
+
 ## Low-Latency Decisions
 
 To keep sessions responsive:
