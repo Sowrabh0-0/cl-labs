@@ -20,6 +20,7 @@ When `GUACAMOLE_SYNC_ENABLED=true`, admin actions also sync into the Guacamole M
 - Creating an app user creates a matching Guacamole user with the same username/password.
 - Mapping a VM grants that Guacamole user access to the matching Guacamole connection.
 - Registering a VM can also store separate RDP credentials on the Guacamole connection.
+- The Admin dashboard has a separate VM Registry page for listing and editing registered VM connection settings.
 - A VM can be mapped to only one regular user at a time.
 - Admin users can be granted access to all registered Guacamole connections.
 

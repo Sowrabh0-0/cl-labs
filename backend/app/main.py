@@ -62,6 +62,20 @@ class CreateVmRequest(BaseModel):
     ignoreCert: bool = True
 
 
+class UpdateVmRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=128)
+    host: str = Field(min_length=2, max_length=256)
+    protocol: str = "rdp"
+    status: str = "manual-ready"
+    guacamoleConnectionId: str
+    guacamoleLaunchUrl: str | None = None
+    rdpUsername: str | None = Field(default=None, max_length=128)
+    rdpPassword: str | None = Field(default=None, max_length=256)
+    rdpDomain: str | None = Field(default=None, max_length=128)
+    security: str = "any"
+    ignoreCert: bool = True
+
+
 class AssignVmRequest(BaseModel):
     vmId: str | None = None
 
@@ -990,6 +1004,56 @@ def create_vm(
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="VM already exists") from exc
         db.commit()
         row = db.execute("SELECT * FROM vms WHERE id = ?", (request.id,)).fetchone()
+        vm = row_to_vm(row)
+        admin_rows = db.execute("SELECT username FROM users WHERE is_admin = 1").fetchall()
+        sync_guacamole_connection_admin_permissions([admin["username"] for admin in admin_rows], vm)
+        sync_guacamole_connection_password(vm.guacamoleConnectionId, request.rdpPassword)
+        return vm
+    finally:
+        db.close()
+
+
+@app.put("/api/admin/vms/{vm_id}", response_model=VmSummary)
+def update_vm(
+    vm_id: str, request: UpdateVmRequest, session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE)
+) -> VmSummary:
+    db, _, _ = require_admin(session_token)
+    try:
+        existing = db.execute("SELECT * FROM vms WHERE id = ?", (vm_id,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VM not found")
+
+        db.execute(
+            """
+            UPDATE vms
+            SET name = ?,
+                host = ?,
+                protocol = ?,
+                status = ?,
+                guacamole_connection_id = ?,
+                guacamole_launch_url = ?,
+                rdp_username = ?,
+                rdp_domain = ?,
+                security = ?,
+                ignore_cert = ?
+            WHERE id = ?
+            """,
+            (
+                request.name,
+                request.host,
+                request.protocol,
+                request.status,
+                request.guacamoleConnectionId,
+                request.guacamoleLaunchUrl,
+                request.rdpUsername,
+                request.rdpDomain,
+                request.security,
+                int(request.ignoreCert),
+                vm_id,
+            ),
+        )
+        db.commit()
+        row = db.execute("SELECT * FROM vms WHERE id = ?", (vm_id,)).fetchone()
         vm = row_to_vm(row)
         admin_rows = db.execute("SELECT username FROM users WHERE is_admin = 1").fetchall()
         sync_guacamole_connection_admin_permissions([admin["username"] for admin in admin_rows], vm)

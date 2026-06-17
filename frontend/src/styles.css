@@ -321,6 +321,24 @@ dd {
   gap: 18px;
 }
 
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.vm-edit-list {
+  display: grid;
+  gap: 18px;
+}
+
+.small-text {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
 .admin-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -426,6 +444,11 @@ tr:last-child td {
   }
 
   .dashboard-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .section-heading {
     align-items: flex-start;
     flex-direction: column;
   }

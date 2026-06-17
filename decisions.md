@@ -135,6 +135,7 @@ Application-level VM mapping rule:
 - Admin users may inspect/manage connections.
 - App user creation and password reset should sync matching Guacamole users and permissions when Guacamole DB sync is enabled.
 - App credentials and VM/RDP credentials are separate. App credentials authenticate to the application and matching Guacamole user. VM/RDP credentials are stored as Guacamole connection parameters and authenticate to the target VM.
+- VM registration and VM configuration editing live on a separate Admin VM Registry page to keep user management distinct from infrastructure configuration.
 
 ## Guacamole Integration Decision
 

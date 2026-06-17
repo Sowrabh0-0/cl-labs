@@ -86,6 +86,51 @@ function formatTime(epochSeconds: number): string {
   }).format(new Date(epochSeconds * 1000));
 }
 
+function securityOptions(selected = "any"): string {
+  return [
+    ["any", "Any / negotiate"],
+    ["nla", "NLA"],
+    ["rdp", "RDP"],
+    ["tls", "TLS"],
+  ]
+    .map(
+      ([value, label]) =>
+        `<option value="${value}" ${selected === value ? "selected" : ""}>${label}</option>`,
+    )
+    .join("");
+}
+
+function vmFormFields(vm?: VmSummary): string {
+  return `
+    <label>Name<input name="name" value="${escapeHtml(vm?.name ?? "")}" required /></label>
+    <label>Host/IP<input name="host" value="${escapeHtml(vm?.host ?? "")}" required /></label>
+    <label>Guacamole connection ID<input name="guacamoleConnectionId" value="${escapeHtml(vm?.guacamoleConnectionId ?? "")}" required /></label>
+    <label>Status<input name="status" value="${escapeHtml(vm?.status ?? "manual-ready")}" required /></label>
+    <label>RDP username<input name="rdpUsername" value="${escapeHtml(vm?.rdpUsername ?? "")}" autocomplete="off" /></label>
+    <label>RDP password<input name="rdpPassword" type="password" autocomplete="new-password" placeholder="${vm ? "Leave blank to keep current password" : ""}" /></label>
+    <label>RDP domain<input name="rdpDomain" value="${escapeHtml(vm?.rdpDomain ?? "")}" autocomplete="off" /></label>
+    <label>Security mode<select name="security">${securityOptions(vm?.security ?? "any")}</select></label>
+    <label class="check-row"><input name="ignoreCert" type="checkbox" ${vm?.ignoreCert ?? true ? "checked" : ""} /> Ignore RDP certificate</label>
+    <label>Launch URL<input name="guacamoleLaunchUrl" value="${escapeHtml(vm?.guacamoleLaunchUrl === "/guacamole/" ? "" : vm?.guacamoleLaunchUrl ?? "")}" /></label>
+  `;
+}
+
+function vmPayload(form: FormData): Record<string, FormDataEntryValue | boolean | null> {
+  return {
+    name: form.get("name") ?? "",
+    host: form.get("host") ?? "",
+    protocol: "rdp",
+    status: form.get("status") || "manual-ready",
+    guacamoleConnectionId: form.get("guacamoleConnectionId") ?? "",
+    guacamoleLaunchUrl: form.get("guacamoleLaunchUrl") || null,
+    rdpUsername: form.get("rdpUsername") || null,
+    rdpPassword: form.get("rdpPassword") || null,
+    rdpDomain: form.get("rdpDomain") || null,
+    security: form.get("security") || "any",
+    ignoreCert: form.get("ignoreCert") === "on",
+  };
+}
+
 function renderAuthShell(content: string): void {
   root.innerHTML = `
     <main class="shell">
@@ -298,6 +343,7 @@ async function renderAdmin(message = ""): Promise<void> {
             <p class="muted">Manage users, VM registrations, and one-user-to-one-VM assignment.</p>
           </div>
           <div class="actions compact-actions">
+            <button id="vm-page-button" class="secondary-button" type="button">VM Registry</button>
             <button id="back-button" class="secondary-button" type="button">Workspace</button>
             <button id="admin-logout-button" class="secondary-button" type="button">Logout</button>
           </div>
@@ -347,32 +393,25 @@ async function renderAdmin(message = ""): Promise<void> {
             </tbody>
           </table>
         </div>
-
-        <form id="create-vm-form" class="admin-form">
-          <h3>Register VM</h3>
-          <label>VM ID<input name="id" required /></label>
-          <label>Name<input name="name" required /></label>
-          <label>Host/IP<input name="host" required /></label>
-          <label>Guacamole connection ID<input name="guacamoleConnectionId" required /></label>
-          <label>RDP username<input name="rdpUsername" autocomplete="off" /></label>
-          <label>RDP password<input name="rdpPassword" type="password" autocomplete="new-password" /></label>
-          <label>RDP domain<input name="rdpDomain" autocomplete="off" /></label>
-          <label>Security mode
-            <select name="security">
-              <option value="any">Any / negotiate</option>
-              <option value="nla">NLA</option>
-              <option value="rdp">RDP</option>
-              <option value="tls">TLS</option>
-            </select>
-          </label>
-          <label class="check-row"><input name="ignoreCert" type="checkbox" checked /> Ignore RDP certificate</label>
-          <label>Launch URL<input name="guacamoleLaunchUrl" /></label>
-          <button type="submit">Register VM</button>
-        </form>
+        <section class="primary-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">VM registry</p>
+              <h3>${vms.length} registered VM${vms.length === 1 ? "" : "s"}</h3>
+            </div>
+            <button id="vm-page-inline-button" class="secondary-button" type="button">Open VM Registry</button>
+          </div>
+        </section>
       </div>
     `);
 
     document.querySelector<HTMLButtonElement>("#back-button")?.addEventListener("click", boot);
+    document.querySelector<HTMLButtonElement>("#vm-page-button")?.addEventListener("click", () => {
+      void renderVmRegistry();
+    });
+    document.querySelector<HTMLButtonElement>("#vm-page-inline-button")?.addEventListener("click", () => {
+      void renderVmRegistry();
+    });
     document.querySelector<HTMLButtonElement>("#admin-logout-button")?.addEventListener("click", async () => {
       await api("/api/auth/logout", { method: "POST" });
       renderLogin();
@@ -413,6 +452,98 @@ async function renderAdmin(message = ""): Promise<void> {
       }
     });
 
+  } catch (error) {
+    renderLogin(error instanceof Error ? error.message : "Admin access failed");
+  }
+}
+
+async function renderVmRegistry(message = ""): Promise<void> {
+  startHeartbeat();
+  try {
+    const vms = await api<VmSummary[]>("/api/admin/vms");
+
+    renderDashboardShell(`
+      <div class="admin-panel">
+        <div class="session-header">
+          <div>
+            <p class="eyebrow">Admin dashboard</p>
+            <h2>VM Registry</h2>
+            <p class="muted">Register VMs and edit Guacamole/RDP connection configuration.</p>
+          </div>
+          <div class="actions compact-actions">
+            <button id="users-page-button" class="secondary-button" type="button">Users</button>
+            <button id="workspace-button" class="secondary-button" type="button">Workspace</button>
+            <button id="vm-logout-button" class="secondary-button" type="button">Logout</button>
+          </div>
+        </div>
+
+        ${message ? `<p class="notice">${escapeHtml(message)}</p>` : ""}
+
+        <form id="create-vm-form" class="admin-form">
+          <h3>Register VM</h3>
+          <label>VM ID<input name="id" required /></label>
+          ${vmFormFields()}
+          <button type="submit">Register VM</button>
+        </form>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>VM</th>
+                <th>Host</th>
+                <th>RDP User</th>
+                <th>Security</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                vms.length
+                  ? vms
+                      .map(
+                        (vm) => `
+                          <tr>
+                            <td>${escapeHtml(vm.name)}<br /><span class="muted small-text">${escapeHtml(vm.id)}</span></td>
+                            <td>${escapeHtml(vm.host)}</td>
+                            <td>${escapeHtml(vm.rdpUsername ?? "-")}</td>
+                            <td>${escapeHtml(vm.security)}</td>
+                            <td>${escapeHtml(vm.status)}</td>
+                          </tr>
+                        `,
+                      )
+                      .join("")
+                  : `<tr><td colspan="5">No VMs registered yet.</td></tr>`
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="vm-edit-list">
+          ${vms
+            .map(
+              (vm) => `
+                <form class="admin-form edit-vm-form" data-vm-id="${escapeHtml(vm.id)}">
+                  <h3>Edit ${escapeHtml(vm.name)}</h3>
+                  ${vmFormFields(vm)}
+                  <button type="submit">Save VM config</button>
+                </form>
+              `,
+            )
+            .join("")}
+        </div>
+      </div>
+    `);
+
+    document.querySelector<HTMLButtonElement>("#users-page-button")?.addEventListener("click", () => {
+      void renderAdmin();
+    });
+    document.querySelector<HTMLButtonElement>("#workspace-button")?.addEventListener("click", boot);
+    document.querySelector<HTMLButtonElement>("#vm-logout-button")?.addEventListener("click", async () => {
+      await api("/api/auth/logout", { method: "POST" });
+      renderLogin();
+    });
+
     document.querySelector<HTMLFormElement>("#create-vm-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget as HTMLFormElement);
@@ -421,26 +552,34 @@ async function renderAdmin(message = ""): Promise<void> {
           method: "POST",
           body: JSON.stringify({
             id: form.get("id"),
-            name: form.get("name"),
-            host: form.get("host"),
-            protocol: "rdp",
-            status: "manual-ready",
-            guacamoleConnectionId: form.get("guacamoleConnectionId"),
-            guacamoleLaunchUrl: form.get("guacamoleLaunchUrl") || null,
-            rdpUsername: form.get("rdpUsername") || null,
-            rdpPassword: form.get("rdpPassword") || null,
-            rdpDomain: form.get("rdpDomain") || null,
-            security: form.get("security") || "any",
-            ignoreCert: form.get("ignoreCert") === "on",
+            ...vmPayload(form),
           }),
         });
-        await renderAdmin("VM registered and synced to Guacamole.");
+        await renderVmRegistry("VM registered and synced to Guacamole.");
       } catch (error) {
-        await renderAdmin(error instanceof Error ? error.message : "VM registration failed.");
+        await renderVmRegistry(error instanceof Error ? error.message : "VM registration failed.");
       }
     });
+
+    document.querySelectorAll<HTMLFormElement>(".edit-vm-form").forEach((formElement) => {
+      formElement.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const currentForm = event.currentTarget as HTMLFormElement;
+        const vmId = currentForm.dataset.vmId ?? "";
+        const form = new FormData(currentForm);
+        try {
+          await api(`/api/admin/vms/${encodeURIComponent(vmId)}`, {
+            method: "PUT",
+            body: JSON.stringify(vmPayload(form)),
+          });
+          await renderVmRegistry("VM configuration updated and synced to Guacamole.");
+        } catch (error) {
+          await renderVmRegistry(error instanceof Error ? error.message : "VM update failed.");
+        }
+      });
+    });
   } catch (error) {
-    renderLogin(error instanceof Error ? error.message : "Admin access failed");
+    renderLogin(error instanceof Error ? error.message : "VM registry access failed");
   }
 }
 
