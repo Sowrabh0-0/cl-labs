@@ -1,0 +1,6 @@
+data/app.db
+data/test_app.db
+app/__pycache__
+**/__pycache__
+*.pyc
+.env

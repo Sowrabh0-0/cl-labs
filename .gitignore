@@ -1,0 +1,5 @@
+backend/data/app.db
+backend/data/test_app.db
+backend/app/__pycache__/
+frontend/dist/
+frontend/node_modules/

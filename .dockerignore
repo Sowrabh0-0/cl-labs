@@ -1,0 +1,10 @@
+.git
+.agents
+.codex
+frontend/node_modules
+frontend/dist
+backend/data/app.db
+backend/data/test_app.db
+backend/app/__pycache__
+**/__pycache__
+*.pyc

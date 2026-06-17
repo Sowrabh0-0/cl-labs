@@ -1,0 +1,14 @@
+{
+  "settings": {
+    "guacamolePublicUrl": "/guacamole"
+  },
+  "vms": {
+    "vm-vid-client1": {
+      "name": "vm-vid-client1",
+      "host": "4.186.72.63",
+      "protocol": "rdp",
+      "status": "manual-ready",
+      "guacamoleConnectionId": "vm-vid-client1"
+    }
+  }
+}
