@@ -1,0 +1,212 @@
+clahanlabsadmin@vm-guacamole:~/clahan-labs$ sudo docker compose logs --tail=150 backend
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 165, in __call__
+backend-1  |     await self.app(scope, receive, _send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py", line 93, in __call__
+backend-1  |     await self.simple_response(scope, receive, send, request_headers=headers)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py", line 144, in simple_response
+backend-1  |     await self.app(scope, receive, send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+backend-1  |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+backend-1  |     raise exc
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+backend-1  |     await app(scope, receive, sender)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 715, in __call__
+backend-1  |     await self.middleware_stack(scope, receive, send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 735, in app
+backend-1  |     await route.handle(scope, receive, send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 288, in handle
+backend-1  |     await self.app(scope, receive, send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 76, in app
+backend-1  |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+backend-1  |     raise exc
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+backend-1  |     await app(scope, receive, sender)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 73, in app
+backend-1  |     response = await f(request)
+backend-1  |                ^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 301, in app
+backend-1  |     raw_response = await run_endpoint_function(
+backend-1  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 214, in run_endpoint_function
+backend-1  |     return await run_in_threadpool(dependant.call, **values)
+backend-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/concurrency.py", line 39, in run_in_threadpool
+backend-1  |     return await anyio.to_thread.run_sync(func, *args)
+backend-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/anyio/to_thread.py", line 63, in run_sync
+backend-1  |     return await get_async_backend().run_sync_in_worker_thread(
+backend-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 2592, in run_sync_in_worker_thread
+backend-1  |     return await future
+backend-1  |            ^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 1029, in run
+backend-1  |     result = context.run(func, *args)
+backend-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/app/app/main.py", line 573, in setup_admin
+backend-1  |     sync_guacamole_user_mapping(request.username, request.password, None, True)
+backend-1  |   File "/app/app/main.py", line 286, in sync_guacamole_user_mapping
+backend-1  |     with connect_guacamole_db() as guac_db:
+backend-1  |          ^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/app/app/main.py", line 172, in connect_guacamole_db
+backend-1  |     return pymysql.connect(
+backend-1  |            ^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/pymysql/connections.py", line 361, in __init__
+backend-1  |     self.connect()
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/pymysql/connections.py", line 669, in connect
+backend-1  |     self._request_authentication()
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/pymysql/connections.py", line 979, in _request_authentication
+backend-1  |     auth_packet = _auth.caching_sha2_password_auth(self, auth_packet)
+backend-1  |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/pymysql/_auth.py", line 267, in caching_sha2_password_auth
+backend-1  |     data = sha2_rsa_encrypt(conn.password, conn.salt, conn.server_public_key)
+backend-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/pymysql/_auth.py", line 144, in sha2_rsa_encrypt
+backend-1  |     raise RuntimeError(
+backend-1  | RuntimeError: 'cryptography' package is required for sha256_password or caching_sha2_password auth methods
+backend-1  | INFO:     172.18.0.5:47926 - "GET /api/setup/status HTTP/1.1" 200 OK
+backend-1  | INFO:     127.0.0.1:39210 - "GET /api/health HTTP/1.1" 200 OK
+backend-1  | INFO:     172.18.0.5:48408 - "POST /api/setup/admin HTTP/1.1" 500 Internal Server Error
+backend-1  | ERROR:    Exception in ASGI application
+backend-1  | Traceback (most recent call last):
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+backend-1  |     result = await app(  # type: ignore[func-returns-value]
+backend-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+backend-1  |     return await self.app(scope, receive, send)
+backend-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/fastapi/applications.py", line 1054, in __call__
+backend-1  |     await super().__call__(scope, receive, send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/applications.py", line 113, in __call__
+backend-1  |     await self.middleware_stack(scope, receive, send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 187, in __call__
+backend-1  |     raise exc
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/errors.py", line 165, in __call__
+backend-1  |     await self.app(scope, receive, _send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py", line 93, in __call__
+backend-1  |     await self.simple_response(scope, receive, send, request_headers=headers)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/cors.py", line 144, in simple_response
+backend-1  |     await self.app(scope, receive, send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+backend-1  |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+backend-1  |     raise exc
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+backend-1  |     await app(scope, receive, sender)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 715, in __call__
+backend-1  |     await self.middleware_stack(scope, receive, send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 735, in app
+backend-1  |     await route.handle(scope, receive, send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 288, in handle
+backend-1  |     await self.app(scope, receive, send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 76, in app
+backend-1  |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+backend-1  |     raise exc
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+backend-1  |     await app(scope, receive, sender)
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/routing.py", line 73, in app
+backend-1  |     response = await f(request)
+backend-1  |                ^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 301, in app
+backend-1  |     raw_response = await run_endpoint_function(
+backend-1  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 214, in run_endpoint_function
+backend-1  |     return await run_in_threadpool(dependant.call, **values)
+backend-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/starlette/concurrency.py", line 39, in run_in_threadpool
+backend-1  |     return await anyio.to_thread.run_sync(func, *args)
+backend-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/anyio/to_thread.py", line 63, in run_sync
+backend-1  |     return await get_async_backend().run_sync_in_worker_thread(
+backend-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 2592, in run_sync_in_worker_thread
+backend-1  |     return await future
+backend-1  |            ^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 1029, in run
+backend-1  |     result = context.run(func, *args)
+backend-1  |              ^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/app/app/main.py", line 573, in setup_admin
+backend-1  |     sync_guacamole_user_mapping(request.username, request.password, None, True)
+backend-1  |   File "/app/app/main.py", line 286, in sync_guacamole_user_mapping
+backend-1  |     with connect_guacamole_db() as guac_db:
+backend-1  |          ^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/app/app/main.py", line 172, in connect_guacamole_db
+backend-1  |     return pymysql.connect(
+backend-1  |            ^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/pymysql/connections.py", line 361, in __init__
+backend-1  |     self.connect()
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/pymysql/connections.py", line 669, in connect
+backend-1  |     self._request_authentication()
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/pymysql/connections.py", line 979, in _request_authentication
+backend-1  |     auth_packet = _auth.caching_sha2_password_auth(self, auth_packet)
+backend-1  |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/pymysql/_auth.py", line 267, in caching_sha2_password_auth
+backend-1  |     data = sha2_rsa_encrypt(conn.password, conn.salt, conn.server_public_key)
+backend-1  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend-1  |   File "/usr/local/lib/python3.12/site-packages/pymysql/_auth.py", line 144, in sha2_rsa_encrypt
+backend-1  |     raise RuntimeError(
+backend-1  | RuntimeError: 'cryptography' package is required for sha256_password or caching_sha2_password auth methods
+backend-1  | INFO:     127.0.0.1:53642 - "GET /api/health HTTP/1.1" 200 OK
+clahanlabsadmin@vm-guacamole:~/clahan-labs$
+
+
+
+
+
+
+clahanlabsadmin@vm-guacamole:~/clahan-labs$ sudo docker compose logs --tail=80 guacamole-db
+guacamole-db-1  | 2026-06-17 11:02:44+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.4.10-1.el9 started.
+guacamole-db-1  | 2026-06-17 11:02:44+00:00 [Note] [Entrypoint]: Switching to dedicated user 'mysql'
+guacamole-db-1  | 2026-06-17 11:02:44+00:00 [Note] [Entrypoint]: Entrypoint script for MySQL Server 8.4.10-1.el9 started.
+guacamole-db-1  | 2026-06-17 11:02:44+00:00 [Note] [Entrypoint]: Initializing database files
+guacamole-db-1  | 2026-06-17T11:02:44.988002Z 0 [System] [MY-015017] [Server] MySQL Server Initialization - start.
+guacamole-db-1  | 2026-06-17T11:02:44.990658Z 0 [System] [MY-013169] [Server] /usr/sbin/mysqld (mysqld 8.4.10) initializing of server in progress as process 79
+guacamole-db-1  | 2026-06-17T11:02:45.003979Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+guacamole-db-1  | 2026-06-17T11:02:46.929111Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+guacamole-db-1  | 2026-06-17T11:02:50.006682Z 6 [Warning] [MY-010453] [Server] root@localhost is created with an empty password ! Please consider switching off the --initialize-insecure option.
+guacamole-db-1  | 2026-06-17T11:02:56.327986Z 0 [System] [MY-015018] [Server] MySQL Server Initialization - end.
+guacamole-db-1  | 2026-06-17 11:02:56+00:00 [Note] [Entrypoint]: Database files initialized
+guacamole-db-1  | 2026-06-17 11:02:56+00:00 [Note] [Entrypoint]: Starting temporary server
+guacamole-db-1  | 2026-06-17T11:02:56.367484Z 0 [System] [MY-015015] [Server] MySQL Server - start.
+guacamole-db-1  | 2026-06-17T11:02:56.593823Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.4.10) starting as process 129
+guacamole-db-1  | 2026-06-17T11:02:56.611607Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+guacamole-db-1  | 2026-06-17T11:02:57.388618Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+guacamole-db-1  | 2026-06-17T11:02:57.867408Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+guacamole-db-1  | 2026-06-17T11:02:57.867458Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+guacamole-db-1  | 2026-06-17T11:02:57.873032Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+guacamole-db-1  | 2026-06-17T11:02:57.900501Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Socket: /var/run/mysqld/mysqlx.sock
+guacamole-db-1  | 2026-06-17T11:02:57.900975Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.4.10'  socket: '/var/run/mysqld/mysqld.sock'  port: 0  MySQL Community Server - GPL.
+guacamole-db-1  | 2026-06-17 11:02:57+00:00 [Note] [Entrypoint]: Temporary server started.
+guacamole-db-1  | '/var/lib/mysql/mysql.sock' -> '/var/run/mysqld/mysqld.sock'
+guacamole-db-1  | Warning: Unable to load '/usr/share/zoneinfo/iso3166.tab' as time zone. Skipping it.
+guacamole-db-1  | Warning: Unable to load '/usr/share/zoneinfo/leap-seconds.list' as time zone. Skipping it.
+guacamole-db-1  | Warning: Unable to load '/usr/share/zoneinfo/leapseconds' as time zone. Skipping it.
+guacamole-db-1  | Warning: Unable to load '/usr/share/zoneinfo/tzdata.zi' as time zone. Skipping it.
+guacamole-db-1  | Warning: Unable to load '/usr/share/zoneinfo/zone.tab' as time zone. Skipping it.
+guacamole-db-1  | Warning: Unable to load '/usr/share/zoneinfo/zone1970.tab' as time zone. Skipping it.
+guacamole-db-1  | 2026-06-17 11:03:00+00:00 [Note] [Entrypoint]: Creating database guacamole_db
+guacamole-db-1  | 2026-06-17 11:03:00+00:00 [Note] [Entrypoint]: Creating user guacamole_user
+guacamole-db-1  | 2026-06-17 11:03:00+00:00 [Note] [Entrypoint]: Giving user guacamole_user access to schema guacamole_db
+guacamole-db-1  |
+guacamole-db-1  | 2026-06-17 11:03:00+00:00 [Note] [Entrypoint]: /usr/local/bin/docker-entrypoint.sh: running /docker-entrypoint-initdb.d/001-initdb.sql
+guacamole-db-1  |
+guacamole-db-1  |
+guacamole-db-1  | 2026-06-17 11:03:02+00:00 [Note] [Entrypoint]: Stopping temporary server
+guacamole-db-1  | 2026-06-17T11:03:02.747178Z 14 [System] [MY-013172] [Server] Received SHUTDOWN from user root. Shutting down mysqld (Version: 8.4.10).
+guacamole-db-1  | 2026-06-17T11:03:05.028994Z 0 [System] [MY-010910] [Server] /usr/sbin/mysqld: Shutdown complete (mysqld 8.4.10)  MySQL Community Server - GPL.
+guacamole-db-1  | 2026-06-17T11:03:05.029018Z 0 [System] [MY-015016] [Server] MySQL Server - end.
+guacamole-db-1  | 2026-06-17 11:03:05+00:00 [Note] [Entrypoint]: Temporary server stopped
+guacamole-db-1  |
+guacamole-db-1  | 2026-06-17 11:03:05+00:00 [Note] [Entrypoint]: MySQL init process done. Ready for start up.
+guacamole-db-1  |
+guacamole-db-1  | 2026-06-17T11:03:05.771464Z 0 [System] [MY-015015] [Server] MySQL Server - start.
+guacamole-db-1  | 2026-06-17T11:03:06.003919Z 0 [System] [MY-010116] [Server] /usr/sbin/mysqld (mysqld 8.4.10) starting as process 1
+guacamole-db-1  | 2026-06-17T11:03:06.010794Z 1 [System] [MY-013576] [InnoDB] InnoDB initialization has started.
+guacamole-db-1  | 2026-06-17T11:03:06.755298Z 1 [System] [MY-013577] [InnoDB] InnoDB initialization has ended.
+guacamole-db-1  | 2026-06-17T11:03:07.121973Z 0 [Warning] [MY-010068] [Server] CA certificate ca.pem is self signed.
+guacamole-db-1  | 2026-06-17T11:03:07.122022Z 0 [System] [MY-013602] [Server] Channel mysql_main configured to support TLS. Encrypted connections are now supported for this channel.
+guacamole-db-1  | 2026-06-17T11:03:07.136187Z 0 [Warning] [MY-011810] [Server] Insecure configuration for --pid-file: Location '/var/run/mysqld' in the path is accessible to all OS users. Consider choosing a different directory.
+guacamole-db-1  | 2026-06-17T11:03:07.172190Z 0 [System] [MY-011323] [Server] X Plugin ready for connections. Bind-address: '::' port: 33060, socket: /var/run/mysqld/mysqlx.sock
+guacamole-db-1  | 2026-06-17T11:03:07.172319Z 0 [System] [MY-010931] [Server] /usr/sbin/mysqld: ready for connections. Version: '8.4.10'  socket: '/var/run/mysqld/mysqld.sock'  port: 3306  MySQL Community Server - GPL.
