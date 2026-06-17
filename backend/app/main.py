@@ -52,6 +52,11 @@ class CreateVmRequest(BaseModel):
     status: str = "manual-ready"
     guacamoleConnectionId: str
     guacamoleLaunchUrl: str | None = None
+    rdpUsername: str | None = Field(default=None, max_length=128)
+    rdpPassword: str | None = Field(default=None, max_length=256)
+    rdpDomain: str | None = Field(default=None, max_length=128)
+    security: str = "any"
+    ignoreCert: bool = True
 
 
 class AssignVmRequest(BaseModel):
@@ -70,6 +75,10 @@ class VmSummary(BaseModel):
     status: str
     guacamoleConnectionId: str
     guacamoleLaunchUrl: str
+    rdpUsername: str | None = None
+    rdpDomain: str | None = None
+    security: str = "any"
+    ignoreCert: bool = True
 
 
 class UserSummary(BaseModel):
@@ -242,8 +251,10 @@ def ensure_guacamole_connection(cursor: pymysql.cursors.Cursor, vm: VmSummary) -
     params = {
         "hostname": vm.host,
         "port": "3389" if vm.protocol.lower() == "rdp" else "",
-        "security": "any",
-        "ignore-cert": "true",
+        "security": vm.security,
+        "ignore-cert": "true" if vm.ignoreCert else "false",
+        "username": vm.rdpUsername or "",
+        "domain": vm.rdpDomain or "",
     }
     for name, value in params.items():
         if not value:
@@ -258,6 +269,30 @@ def ensure_guacamole_connection(cursor: pymysql.cursors.Cursor, vm: VmSummary) -
         )
 
     return connection_id
+
+
+def sync_guacamole_connection_password(connection_name: str, rdp_password: str | None) -> None:
+    if not guacamole_sync_enabled() or not rdp_password:
+        return
+
+    with connect_guacamole_db() as guac_db:
+        with guac_db.cursor() as cursor:
+            cursor.execute(
+                "SELECT connection_id FROM guacamole_connection WHERE connection_name = %s",
+                (connection_name,),
+            )
+            connection = cursor.fetchone()
+            if not connection:
+                return
+            cursor.execute(
+                """
+                INSERT INTO guacamole_connection_parameter (connection_id, parameter_name, parameter_value)
+                VALUES (%s, 'password', %s)
+                ON DUPLICATE KEY UPDATE parameter_value = VALUES(parameter_value)
+                """,
+                (int(connection["connection_id"]), rdp_password),
+            )
+        guac_db.commit()
 
 
 def grant_guacamole_connection(cursor: pymysql.cursors.Cursor, entity_id: int, connection_id: int) -> None:
@@ -375,6 +410,10 @@ def init_db() -> None:
                 status TEXT NOT NULL,
                 guacamole_connection_id TEXT NOT NULL,
                 guacamole_launch_url TEXT,
+                rdp_username TEXT,
+                rdp_domain TEXT,
+                security TEXT NOT NULL DEFAULT 'any',
+                ignore_cert INTEGER NOT NULL DEFAULT 1,
                 created_at INTEGER NOT NULL
             );
 
@@ -398,6 +437,17 @@ def init_db() -> None:
             );
             """
         )
+
+        existing_columns = {row["name"] for row in db.execute("PRAGMA table_info(vms)").fetchall()}
+        migrations = {
+            "rdp_username": "ALTER TABLE vms ADD COLUMN rdp_username TEXT",
+            "rdp_domain": "ALTER TABLE vms ADD COLUMN rdp_domain TEXT",
+            "security": "ALTER TABLE vms ADD COLUMN security TEXT NOT NULL DEFAULT 'any'",
+            "ignore_cert": "ALTER TABLE vms ADD COLUMN ignore_cert INTEGER NOT NULL DEFAULT 1",
+        }
+        for column_name, statement in migrations.items():
+            if column_name not in existing_columns:
+                db.execute(statement)
 
         count = db.execute("SELECT COUNT(*) AS total FROM vms").fetchone()["total"]
         if count == 0 and SEED_PATH.exists():
@@ -435,6 +485,10 @@ def row_to_vm(row: sqlite3.Row) -> VmSummary:
         status=row["status"],
         guacamoleConnectionId=row["guacamole_connection_id"],
         guacamoleLaunchUrl=row["guacamole_launch_url"] or fallback_url,
+        rdpUsername=row["rdp_username"],
+        rdpDomain=row["rdp_domain"],
+        security=row["security"],
+        ignoreCert=bool(row["ignore_cert"]),
     )
 
 
@@ -794,9 +848,10 @@ def create_vm(
                 """
                 INSERT INTO vms (
                     id, name, host, protocol, status, guacamole_connection_id,
-                    guacamole_launch_url, created_at
+                    guacamole_launch_url, rdp_username, rdp_domain, security,
+                    ignore_cert, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     request.id,
@@ -806,6 +861,10 @@ def create_vm(
                     request.status,
                     request.guacamoleConnectionId,
                     request.guacamoleLaunchUrl,
+                    request.rdpUsername,
+                    request.rdpDomain,
+                    request.security,
+                    int(request.ignoreCert),
                     now(),
                 ),
             )
@@ -816,6 +875,7 @@ def create_vm(
         vm = row_to_vm(row)
         admin_rows = db.execute("SELECT username FROM users WHERE is_admin = 1").fetchall()
         sync_guacamole_connection_admin_permissions([admin["username"] for admin in admin_rows], vm)
+        sync_guacamole_connection_password(vm.guacamoleConnectionId, request.rdpPassword)
         return vm
     finally:
         db.close()

@@ -19,12 +19,20 @@ When `GUACAMOLE_SYNC_ENABLED=true`, admin actions also sync into the Guacamole M
 
 - Creating an app user creates a matching Guacamole user with the same username/password.
 - Mapping a VM grants that Guacamole user access to the matching Guacamole connection.
+- Registering a VM can also store separate RDP credentials on the Guacamole connection.
 - A VM can be mapped to only one regular user at a time.
 - Admin users can be granted access to all registered Guacamole connections.
 
 Existing users created before Guacamole sync can be updated from the Admin dashboard with **Reset password and sync Guacamole**.
 
 If a synced user receives **Invalid Login** in Guacamole, rebuild the backend with the latest code and run **Reset password and sync Guacamole** for that user. Guacamole JDBC password hashes must be generated with Guacamole's expected SHA-256 salt format.
+
+Important credential split:
+
+- App user password: used for the Clahan Labs app login and the matching Guacamole user login.
+- VM/RDP password: used only by Guacamole when connecting to the remote VM.
+
+Do not reuse the app user password as the VM/RDP password unless the VM itself intentionally has that same account.
 
 ## Session Policy
 
@@ -33,6 +41,8 @@ If a synced user receives **Invalid Login** in Guacamole, rebuild the backend wi
 - Reconnect window: available while the session is not idle-expired.
 
 Credentials are stored in SQLite as PBKDF2 password hashes. They are not hardcoded in the codebase.
+
+VM/RDP passwords are sent to Guacamole as connection parameters so Guacamole can connect to the target VM. For production, move these secrets to Azure Key Vault or another managed secret store.
 
 ## What You Need To Provide
 

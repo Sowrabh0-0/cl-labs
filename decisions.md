@@ -124,6 +124,7 @@ The `vms` table should store:
 - Protocol: RDP initially.
 - Port: usually `3389` for xRDP.
 - Guacamole connection identifier.
+- Optional RDP username/domain metadata for Guacamole connection provisioning.
 - Current state: available, assigned, offline, maintenance.
 
 For now, manually create VMs in Azure and register them in the database. Admin users can create application users and map each user to a fixed VM. Later, add Azure SDK automation to provision, tag, start, stop, and assign VMs dynamically.
@@ -133,6 +134,7 @@ Application-level VM mapping rule:
 - One non-admin user per VM.
 - Admin users may inspect/manage connections.
 - App user creation and password reset should sync matching Guacamole users and permissions when Guacamole DB sync is enabled.
+- App credentials and VM/RDP credentials are separate. App credentials authenticate to the application and matching Guacamole user. VM/RDP credentials are stored as Guacamole connection parameters and authenticate to the target VM.
 
 ## Guacamole Integration Decision
 
@@ -204,6 +206,7 @@ Minimum security baseline:
 - Store VM credentials securely, not in source files.
 - Rotate credentials used by Guacamole.
 - Log login, session start, reconnect, disconnect, and failed auth events.
+- For the MVP, Guacamole connection passwords may be written into the Guacamole database because Guacamole needs them for unattended RDP connection. Move this to Azure Key Vault or a dedicated secret manager before production.
 
 For production:
 

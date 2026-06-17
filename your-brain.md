@@ -33,6 +33,7 @@ Known test machines from `machines.md`:
 
 - Guacamole VM public IP: `135.235.218.233`
 - Test client VM public IP: `4.186.72.63`
+- Test client VM private IP observed from logs: `10.10.2.4`
 
 Note: `prompt.md` was referenced by the IDE tab list but was not present in the workspace when inspected.
 
@@ -70,6 +71,12 @@ Credentials and user-to-VM mappings should be stored in SQLite for now, not hard
 Guacamole direct client URLs should not be guessed from VM names. The app should open `/guacamole/` by default unless an admin provides a known-good Guacamole launch URL.
 
 Guacamole DB sync is now planned/implemented in the backend: creating/resetting an app user can create a matching Guacamole user with the same credentials, create/update the Guacamole connection, and grant connection permission. Regular VMs should be assigned to only one non-admin user at a time.
+
+Credential split:
+
+- App password authenticates to the Clahan Labs app and to the synced Guacamole user.
+- VM/RDP password authenticates to the target VM and is synced as a Guacamole connection parameter when a VM is registered.
+- Do not assume the app user password and VM password are the same.
 
 ## Deployment Direction
 
@@ -109,5 +116,6 @@ The first MVP should prove:
 - Active Guacamole sessions are stateful. Restarting `guacd` can drop sessions.
 - If scaling Guacamole later, design sticky routing and session placement carefully.
 - Target VMs should move behind private networking instead of public IP exposure.
+- Prefer the target VM private IP for Guacamole connections when both VMs share a VNet. For `vm-vid-client1`, try `10.10.2.4:3389` from `vm-guacamole`.
 - Store VM credentials securely, eventually in Azure Key Vault.
 - Consider OIDC/SSO later, but username/password is acceptable for the MVP.

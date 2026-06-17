@@ -6,6 +6,10 @@ type VmSummary = {
   status: string;
   guacamoleConnectionId: string;
   guacamoleLaunchUrl: string;
+  rdpUsername: string | null;
+  rdpDomain: string | null;
+  security: string;
+  ignoreCert: boolean;
 };
 
 type UserSummary = {
@@ -335,6 +339,18 @@ async function renderAdmin(message = ""): Promise<void> {
           <label>Name<input name="name" required /></label>
           <label>Host/IP<input name="host" required /></label>
           <label>Guacamole connection ID<input name="guacamoleConnectionId" required /></label>
+          <label>RDP username<input name="rdpUsername" autocomplete="off" /></label>
+          <label>RDP password<input name="rdpPassword" type="password" autocomplete="new-password" /></label>
+          <label>RDP domain<input name="rdpDomain" autocomplete="off" /></label>
+          <label>Security mode
+            <select name="security">
+              <option value="any">Any / negotiate</option>
+              <option value="nla">NLA</option>
+              <option value="rdp">RDP</option>
+              <option value="tls">TLS</option>
+            </select>
+          </label>
+          <label class="check-row"><input name="ignoreCert" type="checkbox" checked /> Ignore RDP certificate</label>
           <label>Launch URL<input name="guacamoleLaunchUrl" /></label>
           <button type="submit">Register VM</button>
         </form>
@@ -392,6 +408,11 @@ async function renderAdmin(message = ""): Promise<void> {
             status: "manual-ready",
             guacamoleConnectionId: form.get("guacamoleConnectionId"),
             guacamoleLaunchUrl: form.get("guacamoleLaunchUrl") || null,
+            rdpUsername: form.get("rdpUsername") || null,
+            rdpPassword: form.get("rdpPassword") || null,
+            rdpDomain: form.get("rdpDomain") || null,
+            security: form.get("security") || "any",
+            ignoreCert: form.get("ignoreCert") === "on",
           }),
         });
         await renderAdmin("VM registered and synced to Guacamole.");
