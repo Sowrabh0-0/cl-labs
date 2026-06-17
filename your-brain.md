@@ -72,6 +72,8 @@ Guacamole direct client URLs should not be guessed from VM names. The app should
 
 Guacamole DB sync is now planned/implemented in the backend: creating/resetting an app user can create a matching Guacamole user with the same credentials, create/update the Guacamole connection, and grant connection permission. Regular VMs should be assigned to only one non-admin user at a time.
 
+The target launch path should now skip the Guacamole login page for users. FastAPI generates a short-lived encrypted JSON auth token and opens `/guacamole/?data=...`, exposing only the VM mapped to that app user.
+
 Credential split:
 
 - App password authenticates to the Clahan Labs app and to the synced Guacamole user.

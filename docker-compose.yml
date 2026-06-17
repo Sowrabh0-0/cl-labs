@@ -38,6 +38,8 @@ services:
       MYSQL_DATABASE: ${GUACAMOLE_MYSQL_DATABASE:-guacamole_db}
       MYSQL_USER: ${GUACAMOLE_MYSQL_USER:-guacamole_user}
       MYSQL_PASSWORD: ${GUACAMOLE_MYSQL_PASSWORD:-change-guacamole-user-password}
+      JSON_ENABLED: "true"
+      JSON_SECRET_KEY: ${GUACAMOLE_JSON_SECRET_KEY:-0123456789abcdef0123456789abcdef}
     ports:
       - "${GUACAMOLE_BIND:-127.0.0.1}:${GUACAMOLE_PORT:-8090}:8080"
 
@@ -58,6 +60,7 @@ services:
       GUACAMOLE_MYSQL_DATABASE: ${GUACAMOLE_MYSQL_DATABASE:-guacamole_db}
       GUACAMOLE_MYSQL_USER: ${GUACAMOLE_MYSQL_USER:-guacamole_user}
       GUACAMOLE_MYSQL_PASSWORD: ${GUACAMOLE_MYSQL_PASSWORD:-change-guacamole-user-password}
+      GUACAMOLE_JSON_SECRET_KEY: ${GUACAMOLE_JSON_SECRET_KEY:-0123456789abcdef0123456789abcdef}
     volumes:
       - backend-data:/app/data
     expose:

@@ -23,6 +23,14 @@ When `GUACAMOLE_SYNC_ENABLED=true`, admin actions also sync into the Guacamole M
 - A VM can be mapped to only one regular user at a time.
 - Admin users can be granted access to all registered Guacamole connections.
 
+The normal user launch path uses Guacamole's encrypted JSON authentication extension:
+
+- The user logs into the Clahan Labs app only.
+- FastAPI verifies the app session and mapped VM.
+- FastAPI creates a short-lived Guacamole JSON auth token with only that user's assigned VM.
+- The browser opens `/guacamole/?data=...`.
+- The Guacamole username/password page is skipped for normal VM launch.
+
 Existing users created before Guacamole sync can be updated from the Admin dashboard with **Reset password and sync Guacamole**.
 
 If a synced user receives **Invalid Login** in Guacamole, rebuild the backend with the latest code and run **Reset password and sync Guacamole** for that user. Guacamole JDBC password hashes must be generated with Guacamole's expected SHA-256 salt format.
@@ -72,6 +80,13 @@ APP_SESSION_SECRET=replace-with-a-long-random-string
 COOKIE_SECURE=false
 FRONTEND_ORIGIN=http://localhost:5173
 GUACAMOLE_PUBLIC_URL=/guacamole
+GUACAMOLE_JSON_SECRET_KEY=0123456789abcdef0123456789abcdef
+```
+
+Generate a real production value on the Azure VM with:
+
+```bash
+openssl rand -hex 16
 ```
 
 ## Run Frontend

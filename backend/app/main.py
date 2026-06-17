@@ -10,8 +10,11 @@ import sqlite3
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import pymysql
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from fastapi import Cookie, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -103,6 +106,11 @@ class SessionSummary(BaseModel):
     idleExpiresAt: int
 
 
+class GuacamoleLaunchResponse(BaseModel):
+    launchUrl: str
+    expiresAt: int
+
+
 def connect_db() -> sqlite3.Connection:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -175,6 +183,10 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 def guacamole_sync_enabled() -> bool:
     return os.getenv("GUACAMOLE_SYNC_ENABLED", "false").lower() == "true"
+
+
+def get_guacamole_public_url() -> str:
+    return os.getenv("GUACAMOLE_PUBLIC_URL", "/guacamole").rstrip("/") or "/guacamole"
 
 
 def connect_guacamole_db() -> pymysql.connections.Connection:
@@ -293,6 +305,100 @@ def sync_guacamole_connection_password(connection_name: str, rdp_password: str |
                 (int(connection["connection_id"]), rdp_password),
             )
         guac_db.commit()
+
+
+def get_guacamole_connection_password(connection_name: str) -> str | None:
+    if not guacamole_sync_enabled():
+        return None
+
+    with connect_guacamole_db() as guac_db:
+        with guac_db.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT p.parameter_value
+                FROM guacamole_connection c
+                JOIN guacamole_connection_parameter p ON p.connection_id = c.connection_id
+                WHERE c.connection_name = %s
+                  AND p.parameter_name = 'password'
+                LIMIT 1
+                """,
+                (connection_name,),
+            )
+            row = cursor.fetchone()
+            return str(row["parameter_value"]) if row else None
+
+
+def get_json_secret_key() -> bytes:
+    secret = os.getenv("GUACAMOLE_JSON_SECRET_KEY", "").strip()
+    if not secret:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Guacamole JSON auth secret is not configured",
+        )
+    try:
+        key = bytes.fromhex(secret)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Guacamole JSON auth secret must be a 32-character hex value",
+        ) from exc
+    if len(key) != 16:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Guacamole JSON auth secret must be 128-bit / 16 bytes",
+        )
+    return key
+
+
+def encrypt_guacamole_json(payload: dict[str, Any]) -> str:
+    key = get_json_secret_key()
+    plaintext = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    signature = hmac.new(key, plaintext, hashlib.sha256).digest()
+    signed_payload = signature + plaintext
+
+    padder = padding.PKCS7(algorithms.AES.block_size).padder()
+    padded_payload = padder.update(signed_payload) + padder.finalize()
+    cipher = Cipher(algorithms.AES(key), modes.CBC(bytes(16)))
+    encryptor = cipher.encryptor()
+    encrypted = encryptor.update(padded_payload) + encryptor.finalize()
+    return base64.b64encode(encrypted).decode("ascii")
+
+
+def build_guacamole_launch_url(username: str, vm: VmSummary, app_expires_at: int) -> GuacamoleLaunchResponse:
+    rdp_password = get_guacamole_connection_password(vm.guacamoleConnectionId)
+    if not vm.rdpUsername or not rdp_password:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="VM RDP credentials are missing. Re-register the VM with RDP username and password.",
+        )
+
+    expires_at = min(app_expires_at, now() + 5 * 60)
+    params = {
+        "hostname": vm.host,
+        "port": "3389" if vm.protocol.lower() == "rdp" else "",
+        "security": vm.security,
+        "ignore-cert": "true" if vm.ignoreCert else "false",
+        "username": vm.rdpUsername,
+        "password": rdp_password,
+    }
+    if vm.rdpDomain:
+        params["domain"] = vm.rdpDomain
+
+    payload = {
+        "username": username,
+        "expires": expires_at * 1000,
+        "connections": {
+            vm.guacamoleConnectionId: {
+                "protocol": vm.protocol.lower(),
+                "parameters": {key: value for key, value in params.items() if value},
+            }
+        },
+    }
+    token = encrypt_guacamole_json(payload)
+    return GuacamoleLaunchResponse(
+        launchUrl=f"{get_guacamole_public_url()}/?data={quote(token, safe='')}",
+        expiresAt=expires_at,
+    )
 
 
 def grant_guacamole_connection(cursor: pymysql.cursors.Cursor, entity_id: int, connection_id: int) -> None:
@@ -652,6 +758,18 @@ def heartbeat(session_token: str | None = Cookie(default=None, alias=SESSION_COO
     db, user, session_row = get_current_user(session_token)
     try:
         return build_session_summary(db, user, session_row["expires_at"], session_row["idle_expires_at"])
+    finally:
+        db.close()
+
+
+@app.post("/api/session/guacamole-launch", response_model=GuacamoleLaunchResponse)
+def guacamole_launch(session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE)) -> GuacamoleLaunchResponse:
+    db, user, session_row = get_current_user(session_token)
+    try:
+        vm = get_vm(db, user["vm_id"])
+        if not vm:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No VM assigned to this user")
+        return build_guacamole_launch_url(user["username"], vm, int(session_row["expires_at"]))
     finally:
         db.close()
 

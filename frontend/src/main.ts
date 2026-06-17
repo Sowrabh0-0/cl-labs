@@ -33,6 +33,11 @@ type SetupStatus = {
   needsSetup: boolean;
 };
 
+type GuacamoleLaunchResponse = {
+  launchUrl: string;
+  expiresAt: number;
+};
+
 const API_BASE_URL =
   window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost"
     ? "http://localhost:8000"
@@ -81,7 +86,7 @@ function formatTime(epochSeconds: number): string {
   }).format(new Date(epochSeconds * 1000));
 }
 
-function renderShell(content: string): void {
+function renderAuthShell(content: string): void {
   root.innerHTML = `
     <main class="shell">
       <section class="brand-panel">
@@ -90,6 +95,14 @@ function renderShell(content: string): void {
         <p class="lede">Authenticate, resolve the assigned VM, and continue into the browser session through Guacamole.</p>
       </section>
       <section class="work-panel">${content}</section>
+    </main>
+  `;
+}
+
+function renderDashboardShell(content: string): void {
+  root.innerHTML = `
+    <main class="dashboard-shell">
+      ${content}
     </main>
   `;
 }
@@ -115,7 +128,7 @@ function startHeartbeat(): void {
 
 function renderSetup(message = ""): void {
   stopHeartbeat();
-  renderShell(`
+  renderAuthShell(`
     <form id="setup-form" class="login-form">
       <div>
         <h2>Setup admin</h2>
@@ -155,7 +168,7 @@ function renderSetup(message = ""): void {
 
 function renderLogin(message = ""): void {
   stopHeartbeat();
-  renderShell(`
+  renderAuthShell(`
     <form id="login-form" class="login-form">
       <div>
         <h2>Sign in</h2>
@@ -196,12 +209,13 @@ function renderLogin(message = ""): void {
 function renderSession(session: SessionSummary): void {
   startHeartbeat();
   const vm = session.vm;
-  renderShell(`
+  renderDashboardShell(`
     <div class="dashboard">
       <div class="dashboard-topbar">
         <div>
-          <p class="eyebrow">Workspace</p>
-          <h2>${escapeHtml(session.username)}</h2>
+          <p class="eyebrow">Clahan Labs</p>
+          <h2>Workspace dashboard</h2>
+          <p class="muted">Signed in as ${escapeHtml(session.username)}</p>
         </div>
         <div class="actions compact-actions">
           ${session.isAdmin ? `<button id="admin-button" class="secondary-button" type="button">Admin</button>` : ""}
@@ -209,46 +223,31 @@ function renderSession(session: SessionSummary): void {
         </div>
       </div>
 
-      <div class="dashboard-grid">
-        <section class="primary-panel">
-          <div>
-            <p class="eyebrow">${vm ? "Assigned VM" : "No VM assigned"}</p>
-            <h3>${escapeHtml(vm?.name ?? "Waiting for assignment")}</h3>
-            <p class="muted">${vm ? "Your remote desktop is ready through Apache Guacamole." : "An admin needs to map your account to a VM before you can connect."}</p>
-          </div>
+      <section class="metrics-row">
+        <div><p class="eyebrow">Role</p><strong>${session.isAdmin ? "Admin" : "User"}</strong></div>
+        <div><p class="eyebrow">Max session</p><strong>${formatTime(session.expiresAt)}</strong></div>
+        <div><p class="eyebrow">Idle timeout</p><strong>${formatTime(session.idleExpiresAt)}</strong></div>
+      </section>
 
-          <dl class="detail-grid">
-            <div><dt>Host</dt><dd>${escapeHtml(vm?.host ?? "-")}</dd></div>
-            <div><dt>Protocol</dt><dd>${escapeHtml(vm?.protocol?.toUpperCase() ?? "-")}</dd></div>
-            <div><dt>Status</dt><dd>${escapeHtml(vm?.status ?? "-")}</dd></div>
-            <div><dt>Connection</dt><dd>${escapeHtml(vm?.guacamoleConnectionId ?? "-")}</dd></div>
-          </dl>
+      <section class="primary-panel">
+        <div>
+          <p class="eyebrow">${vm ? "Assigned VM" : "No VM assigned"}</p>
+          <h3>${escapeHtml(vm?.name ?? "Waiting for assignment")}</h3>
+          <p class="muted">${vm ? "Your remote desktop is ready. Launching will authenticate into Guacamole automatically." : "An admin needs to map your account to a VM before you can connect."}</p>
+        </div>
 
-          <div class="actions">
-            ${
-              vm
-                ? `<a class="primary-link" href="${escapeHtml(vm.guacamoleLaunchUrl)}" target="_blank" rel="noreferrer">Open VM Session</a>`
-                : ""
-            }
-            <button id="refresh-button" class="secondary-button" type="button">Refresh</button>
-          </div>
-        </section>
+        <dl class="detail-grid">
+          <div><dt>Host</dt><dd>${escapeHtml(vm?.host ?? "-")}</dd></div>
+          <div><dt>Protocol</dt><dd>${escapeHtml(vm?.protocol?.toUpperCase() ?? "-")}</dd></div>
+          <div><dt>Status</dt><dd>${escapeHtml(vm?.status ?? "-")}</dd></div>
+          <div><dt>Connection</dt><dd>${escapeHtml(vm?.guacamoleConnectionId ?? "-")}</dd></div>
+        </dl>
 
-        <aside class="side-panel">
-          <div>
-            <p class="eyebrow">Session</p>
-            <dl class="stacked-details">
-              <div><dt>Role</dt><dd>${session.isAdmin ? "Admin" : "User"}</dd></div>
-              <div><dt>Max session</dt><dd>${formatTime(session.expiresAt)}</dd></div>
-              <div><dt>Idle timeout</dt><dd>${formatTime(session.idleExpiresAt)}</dd></div>
-            </dl>
-          </div>
-          <div>
-            <p class="eyebrow">Access policy</p>
-            <p class="muted">A VM can be mapped to one regular user at a time. Admin users can manage and inspect mappings.</p>
-          </div>
-        </aside>
-      </div>
+        <div class="actions">
+          ${vm ? `<button id="launch-button" type="button">Open VM Session</button>` : ""}
+          <button id="refresh-button" class="secondary-button" type="button">Refresh</button>
+        </div>
+      </section>
     </div>
   `);
 
@@ -256,6 +255,18 @@ function renderSession(session: SessionSummary): void {
     void renderAdmin();
   });
   document.querySelector<HTMLButtonElement>("#refresh-button")?.addEventListener("click", boot);
+  document.querySelector<HTMLButtonElement>("#launch-button")?.addEventListener("click", async () => {
+    try {
+      const launch = await api<GuacamoleLaunchResponse>("/api/session/guacamole-launch", { method: "POST" });
+      window.open(launch.launchUrl, "_blank", "noreferrer");
+    } catch (error) {
+      renderSession({
+        ...session,
+        vm: session.vm,
+      });
+      window.alert(error instanceof Error ? error.message : "Unable to launch VM session.");
+    }
+  });
   document.querySelector<HTMLButtonElement>("#logout-button")?.addEventListener("click", async () => {
     await api("/api/auth/logout", { method: "POST" });
     renderLogin();
@@ -278,14 +289,18 @@ async function renderAdmin(message = ""): Promise<void> {
       .map((user) => `<option value="${escapeHtml(user.username)}">${escapeHtml(user.username)}</option>`)
       .join("");
 
-    renderShell(`
+    renderDashboardShell(`
       <div class="admin-panel">
         <div class="session-header">
           <div>
-            <p class="eyebrow">Admin dashboard</p>
-            <h2>Users and VM mapping</h2>
+            <p class="eyebrow">Clahan Labs</p>
+            <h2>Admin dashboard</h2>
+            <p class="muted">Manage users, VM registrations, and one-user-to-one-VM assignment.</p>
           </div>
-          <button id="back-button" class="secondary-button" type="button">Back</button>
+          <div class="actions compact-actions">
+            <button id="back-button" class="secondary-button" type="button">Workspace</button>
+            <button id="admin-logout-button" class="secondary-button" type="button">Logout</button>
+          </div>
         </div>
 
         ${message ? `<p class="notice">${escapeHtml(message)}</p>` : ""}
@@ -358,6 +373,10 @@ async function renderAdmin(message = ""): Promise<void> {
     `);
 
     document.querySelector<HTMLButtonElement>("#back-button")?.addEventListener("click", boot);
+    document.querySelector<HTMLButtonElement>("#admin-logout-button")?.addEventListener("click", async () => {
+      await api("/api/auth/logout", { method: "POST" });
+      renderLogin();
+    });
     document.querySelector<HTMLFormElement>("#create-user-form")?.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = new FormData(event.currentTarget as HTMLFormElement);

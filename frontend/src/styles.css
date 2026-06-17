@@ -64,6 +64,12 @@ select {
   padding: 40px;
 }
 
+.dashboard-shell {
+  min-height: 100vh;
+  padding: 32px;
+  background: #f4f7f8;
+}
+
 .login-form,
 .vm-card {
   width: min(100%, 520px);
@@ -180,7 +186,7 @@ button:hover,
 
 .session-header {
   display: flex;
-  width: min(100%, 520px);
+  width: 100%;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -198,7 +204,8 @@ button:hover,
 
 .dashboard {
   display: grid;
-  width: min(100%, 980px);
+  width: min(100%, 1180px);
+  margin: 0 auto;
   gap: 18px;
 }
 
@@ -213,6 +220,28 @@ button:hover,
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(260px, 0.65fr);
   gap: 18px;
+}
+
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.metrics-row > div {
+  min-height: 96px;
+  padding: 20px;
+  border: 1px solid #dce6e8;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 12px 32px rgba(19, 46, 53, 0.06);
+}
+
+.metrics-row strong {
+  display: block;
+  color: #14272c;
+  font-size: 20px;
+  overflow-wrap: anywhere;
 }
 
 .primary-panel,
@@ -287,7 +316,8 @@ dd {
 
 .admin-panel {
   display: grid;
-  width: min(100%, 920px);
+  width: min(100%, 1180px);
+  margin: 0 auto;
   gap: 18px;
 }
 
@@ -379,6 +409,10 @@ tr:last-child td {
     padding: 24px;
   }
 
+  .dashboard-shell {
+    padding: 20px;
+  }
+
   .session-header {
     align-items: flex-start;
     flex-direction: column;
@@ -386,7 +420,8 @@ tr:last-child td {
 
   dl,
   .detail-grid,
-  .dashboard-grid {
+  .dashboard-grid,
+  .metrics-row {
     grid-template-columns: 1fr;
   }
 
