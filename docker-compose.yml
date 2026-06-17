@@ -1,4 +1,46 @@
 services:
+  guacamole-db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${GUACAMOLE_MYSQL_ROOT_PASSWORD:-change-guacamole-root-password}
+      MYSQL_DATABASE: ${GUACAMOLE_MYSQL_DATABASE:-guacamole_db}
+      MYSQL_USER: ${GUACAMOLE_MYSQL_USER:-guacamole_user}
+      MYSQL_PASSWORD: ${GUACAMOLE_MYSQL_PASSWORD:-change-guacamole-user-password}
+    volumes:
+      - guacamole-db-data:/var/lib/mysql
+      - ./deploy/guacamole/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 40s
+
+  guacd:
+    image: guacamole/guacd:${GUACAMOLE_VERSION:-1.5.5}
+    restart: unless-stopped
+    expose:
+      - "4822"
+
+  guacamole:
+    image: guacamole/guacamole:${GUACAMOLE_VERSION:-1.5.5}
+    restart: unless-stopped
+    depends_on:
+      guacd:
+        condition: service_started
+      guacamole-db:
+        condition: service_healthy
+    environment:
+      GUACD_HOSTNAME: guacd
+      GUACD_PORT: 4822
+      MYSQL_HOSTNAME: guacamole-db
+      MYSQL_DATABASE: ${GUACAMOLE_MYSQL_DATABASE:-guacamole_db}
+      MYSQL_USER: ${GUACAMOLE_MYSQL_USER:-guacamole_user}
+      MYSQL_PASSWORD: ${GUACAMOLE_MYSQL_PASSWORD:-change-guacamole-user-password}
+    ports:
+      - "${GUACAMOLE_BIND:-127.0.0.1}:${GUACAMOLE_PORT:-8090}:8080"
+
   backend:
     build:
       context: ./backend
@@ -8,7 +50,7 @@ services:
       APP_SEED_PATH: /app/seed/seed.json
       APP_SESSION_SECRET: ${APP_SESSION_SECRET:-change-this-before-deploy}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
-      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-https://vdi.clahanlabs.com}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-https://clahanlabs.com}
       GUACAMOLE_PUBLIC_URL: ${GUACAMOLE_PUBLIC_URL:-/guacamole}
     volumes:
       - backend-data:/app/data
@@ -33,3 +75,4 @@ services:
 
 volumes:
   backend-data:
+  guacamole-db-data:

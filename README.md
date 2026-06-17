@@ -101,13 +101,28 @@ The Compose stack includes:
 - `frontend`: Nginx serving the compiled TypeScript UI and proxying `/api` to FastAPI.
 - `backend`: FastAPI app on the internal Docker network.
 - `backend-data`: persistent SQLite volume for users, VM mappings, and sessions.
+- `guacamole`: Official Apache Guacamole web container.
+- `guacd`: Official Guacamole proxy daemon container.
+- `guacamole-db`: MySQL database for Guacamole auth/configuration.
 
-## Host Nginx With Local Guacamole
+## Docker Guacamole Setup
 
-For the Azure VM deployment, Guacamole stays on the host at:
+Generate the Guacamole MySQL schema before first startup:
 
 ```bash
-http://127.0.0.1:8080/guacamole/
+bash deploy/scripts/prepare-guacamole-db.sh
+```
+
+If the old host Tomcat/guacd Guacamole install is running, back it up and disable it:
+
+```bash
+bash deploy/scripts/disable-host-guacamole.sh
+```
+
+Start the full stack:
+
+```bash
+docker compose up -d --build
 ```
 
 The Docker app binds only to localhost:
@@ -116,11 +131,17 @@ The Docker app binds only to localhost:
 http://127.0.0.1:8088/
 ```
 
+Docker Guacamole binds only to localhost:
+
+```bash
+http://127.0.0.1:8090/guacamole/
+```
+
 Use [deploy/nginx/clahanlabs-vdi.conf](deploy/nginx/clahanlabs-vdi.conf) as the host Nginx config. It routes:
 
 - `/` to the Docker app on `127.0.0.1:8088`
 - `/api/` to the Docker app on `127.0.0.1:8088`
-- `/guacamole/` to Guacamole on `127.0.0.1:8080/guacamole/`
+- `/guacamole/` to Docker Guacamole on `127.0.0.1:8090/guacamole/`
 
 Apply it on the Azure VM:
 
@@ -130,7 +151,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-Your old config proxied `/` directly to Guacamole. This new config gives `/` to the application and moves Guacamole access to `/guacamole/`.
+Your old config proxied `/` directly to host Tomcat Guacamole. This new config gives `/` to the application and moves Guacamole access to Docker Guacamole at `/guacamole/`.
 
 Useful commands:
 
@@ -141,6 +162,8 @@ docker compose down
 ```
 
 Do not run `docker compose down -v` unless you intentionally want to delete the SQLite data volume.
+
+`docker compose down -v` will also delete the Guacamole MySQL volume.
 
 To override:
 

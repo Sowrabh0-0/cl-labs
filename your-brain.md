@@ -81,11 +81,11 @@ Docker Compose has been added for Azure VM deployment:
 
 The frontend container uses Nginx to serve static files and proxy `/api` to the backend service. Backend SQLite data is stored in the `backend-data` named volume.
 
-Guacamole will run on the same Azure VM outside Docker Compose, currently behind host Nginx and Tomcat at `localhost:8080/guacamole/`. The desired host Nginx routing is:
+Guacamole has moved into Docker Compose because host Tomcat 10 produced Guacamole API 500s and servlet compatibility errors. The desired host Nginx routing is:
 
 - `/` -> Docker app on `127.0.0.1:8088`
 - `/api/` -> Docker app on `127.0.0.1:8088`
-- `/guacamole/` -> existing Guacamole service on `127.0.0.1:8080/guacamole/`
+- `/guacamole/` -> Docker Guacamole on `127.0.0.1:8090/guacamole/`
 
 ## Working Mental Model
 

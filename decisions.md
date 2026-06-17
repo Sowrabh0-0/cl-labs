@@ -255,4 +255,4 @@ Use Docker Compose on the Azure VM for the MVP:
 
 This keeps deployment simple while preserving the option to move the database to PostgreSQL later.
 
-Guacamole is expected to run on the same Azure VM outside this Compose stack at `127.0.0.1:8080/guacamole/`. Host Nginx terminates TLS and routes `/` to the Docker app on `127.0.0.1:8088`, while `/guacamole/` stays mapped to the existing Guacamole/Tomcat service.
+Guacamole should now run inside Docker Compose using official, version-matched Guacamole containers. Host Tomcat 10 caused servlet/API compatibility problems with the current Guacamole WAR/extensions. Host Nginx terminates TLS and routes `/` to the app on `127.0.0.1:8088`, while `/guacamole/` maps to Docker Guacamole on `127.0.0.1:8090/guacamole/`.

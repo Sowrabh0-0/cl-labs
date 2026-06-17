@@ -3,3 +3,4 @@ backend/data/test_app.db
 backend/app/__pycache__/
 frontend/dist/
 frontend/node_modules/
+deploy/guacamole/initdb/*.sql
