@@ -24,6 +24,8 @@ When `GUACAMOLE_SYNC_ENABLED=true`, admin actions also sync into the Guacamole M
 
 Existing users created before Guacamole sync can be updated from the Admin dashboard with **Reset password and sync Guacamole**.
 
+If a synced user receives **Invalid Login** in Guacamole, rebuild the backend with the latest code and run **Reset password and sync Guacamole** for that user. Guacamole JDBC password hashes must be generated with Guacamole's expected SHA-256 salt format.
+
 ## Session Policy
 
 - Max session duration: 4 hours.

@@ -183,7 +183,8 @@ def connect_guacamole_db() -> pymysql.connections.Connection:
 
 def hash_guacamole_password(password: str) -> tuple[bytes, bytes]:
     salt = secrets.token_bytes(32)
-    digest = hashlib.sha256(password.encode("utf-8") + salt).digest()
+    # Guacamole JDBC auth stores SHA256(password + HEX(salt)) as binary.
+    digest = hashlib.sha256(f"{password}{salt.hex().upper()}".encode("utf-8")).digest()
     return digest, salt
 
 
