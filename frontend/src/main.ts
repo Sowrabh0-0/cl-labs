@@ -86,12 +86,29 @@ function formatTime(epochSeconds: number): string {
   }).format(new Date(epochSeconds * 1000));
 }
 
+function displayProtocol(protocol?: string): string {
+  if (!protocol) {
+    return "-";
+  }
+  return protocol.toLowerCase() === "rdp" ? "Remote Desktop" : protocol.toUpperCase();
+}
+
+function displaySecurity(security?: string): string {
+  const labels: Record<string, string> = {
+    any: "Automatic",
+    nla: "Network Level",
+    rdp: "Standard",
+    tls: "Encrypted",
+  };
+  return labels[String(security ?? "").toLowerCase()] ?? "Automatic";
+}
+
 function securityOptions(selected = "any"): string {
   return [
-    ["any", "Any / negotiate"],
-    ["nla", "NLA"],
-    ["rdp", "RDP"],
-    ["tls", "TLS"],
+    ["any", "Automatic"],
+    ["nla", "Network Level"],
+    ["rdp", "Standard"],
+    ["tls", "Encrypted"],
   ]
     .map(
       ([value, label]) =>
@@ -104,13 +121,13 @@ function vmFormFields(vm?: VmSummary): string {
   return `
     <label>Name<input name="name" value="${escapeHtml(vm?.name ?? "")}" required /></label>
     <label>Host/IP<input name="host" value="${escapeHtml(vm?.host ?? "")}" required /></label>
-    <label>Guacamole connection ID<input name="guacamoleConnectionId" value="${escapeHtml(vm?.guacamoleConnectionId ?? "")}" required /></label>
+    <label>Connection profile ID<input name="guacamoleConnectionId" value="${escapeHtml(vm?.guacamoleConnectionId ?? "")}" required /></label>
     <label>Status<input name="status" value="${escapeHtml(vm?.status ?? "manual-ready")}" required /></label>
-    <label>RDP username<input name="rdpUsername" value="${escapeHtml(vm?.rdpUsername ?? "")}" autocomplete="off" /></label>
-    <label>RDP password<input name="rdpPassword" type="password" autocomplete="new-password" placeholder="${vm ? "Leave blank to keep current password" : ""}" /></label>
-    <label>RDP domain<input name="rdpDomain" value="${escapeHtml(vm?.rdpDomain ?? "")}" autocomplete="off" /></label>
+    <label>Remote username<input name="rdpUsername" value="${escapeHtml(vm?.rdpUsername ?? "")}" autocomplete="off" /></label>
+    <label>Remote password<input name="rdpPassword" type="password" autocomplete="new-password" placeholder="${vm ? "Leave blank to keep current password" : ""}" /></label>
+    <label>Remote domain<input name="rdpDomain" value="${escapeHtml(vm?.rdpDomain ?? "")}" autocomplete="off" /></label>
     <label>Security mode<select name="security">${securityOptions(vm?.security ?? "any")}</select></label>
-    <label class="check-row"><input name="ignoreCert" type="checkbox" ${vm?.ignoreCert ?? true ? "checked" : ""} /> Ignore RDP certificate</label>
+    <label class="check-row"><input name="ignoreCert" type="checkbox" ${vm?.ignoreCert ?? true ? "checked" : ""} /> Trust remote certificate</label>
     <label>Launch URL<input name="guacamoleLaunchUrl" value="${escapeHtml(vm?.guacamoleLaunchUrl === "/guacamole/" ? "" : vm?.guacamoleLaunchUrl ?? "")}" /></label>
   `;
 }
@@ -136,8 +153,8 @@ function renderAuthShell(content: string): void {
     <main class="shell">
       <section class="brand-panel">
         <p class="eyebrow">Clahan Labs</p>
-        <h1>VM Gateway</h1>
-        <p class="lede">Authenticate, resolve the assigned VM, and continue into the browser session through Guacamole.</p>
+        <h1>Workspace Gateway</h1>
+        <p class="lede">Sign in and open your assigned cloud workspace in a secure browser session.</p>
       </section>
       <section class="work-panel">${content}</section>
     </main>
@@ -177,7 +194,7 @@ function renderSetup(message = ""): void {
     <form id="setup-form" class="login-form">
       <div>
         <h2>Setup admin</h2>
-        <p class="muted">Create the first admin account. Credentials will be stored in SQLite, not source code.</p>
+        <p class="muted">Create the first administrator account for your workspace.</p>
       </div>
       <label>
         Admin username
@@ -217,7 +234,7 @@ function renderLogin(message = ""): void {
     <form id="login-form" class="login-form">
       <div>
         <h2>Sign in</h2>
-        <p class="muted">Use an account created by the admin dashboard.</p>
+        <p class="muted">Access your assigned cloud workspace.</p>
       </div>
       <label>
         Username
@@ -276,20 +293,20 @@ function renderSession(session: SessionSummary): void {
 
       <section class="primary-panel">
         <div>
-          <p class="eyebrow">${vm ? "Assigned VM" : "No VM assigned"}</p>
+          <p class="eyebrow">${vm ? "Assigned workspace" : "No workspace assigned"}</p>
           <h3>${escapeHtml(vm?.name ?? "Waiting for assignment")}</h3>
-          <p class="muted">${vm ? "Your remote desktop is ready. Launching will authenticate into Guacamole automatically." : "An admin needs to map your account to a VM before you can connect."}</p>
+          <p class="muted">${vm ? "Your workspace is ready to open." : "Your account does not have a workspace assigned yet."}</p>
         </div>
 
         <dl class="detail-grid">
           <div><dt>Host</dt><dd>${escapeHtml(vm?.host ?? "-")}</dd></div>
-          <div><dt>Protocol</dt><dd>${escapeHtml(vm?.protocol?.toUpperCase() ?? "-")}</dd></div>
+          <div><dt>Access type</dt><dd>${escapeHtml(displayProtocol(vm?.protocol))}</dd></div>
           <div><dt>Status</dt><dd>${escapeHtml(vm?.status ?? "-")}</dd></div>
           <div><dt>Connection</dt><dd>${escapeHtml(vm?.guacamoleConnectionId ?? "-")}</dd></div>
         </dl>
 
         <div class="actions">
-          ${vm ? `<button id="launch-button" type="button">Open VM Session</button>` : ""}
+          ${vm ? `<button id="launch-button" type="button">Open Workspace</button>` : ""}
           <button id="refresh-button" class="secondary-button" type="button">Refresh</button>
         </div>
       </section>
@@ -309,7 +326,7 @@ function renderSession(session: SessionSummary): void {
         ...session,
         vm: session.vm,
       });
-      window.alert(error instanceof Error ? error.message : "Unable to launch VM session.");
+      window.alert(error instanceof Error ? error.message : "Unable to open workspace.");
     }
   });
   document.querySelector<HTMLButtonElement>("#logout-button")?.addEventListener("click", async () => {
@@ -327,7 +344,7 @@ async function renderAdmin(message = ""): Promise<void> {
     ]);
 
     const vmOptions = [
-      `<option value="">No VM</option>`,
+      `<option value="">No workspace</option>`,
       ...vms.map((vm) => `<option value="${escapeHtml(vm.id)}">${escapeHtml(vm.name)} (${escapeHtml(vm.host)})</option>`),
     ].join("");
     const userOptions = users
@@ -340,10 +357,10 @@ async function renderAdmin(message = ""): Promise<void> {
           <div>
             <p class="eyebrow">Clahan Labs</p>
             <h2>Admin dashboard</h2>
-            <p class="muted">Manage users, VM registrations, and one-user-to-one-VM assignment.</p>
+            <p class="muted">Manage users and workspace assignments.</p>
           </div>
           <div class="actions compact-actions">
-            <button id="vm-page-button" class="secondary-button" type="button">VM Registry</button>
+            <button id="vm-page-button" class="secondary-button" type="button">Workspaces</button>
             <button id="back-button" class="secondary-button" type="button">Workspace</button>
             <button id="admin-logout-button" class="secondary-button" type="button">Logout</button>
           </div>
@@ -355,16 +372,16 @@ async function renderAdmin(message = ""): Promise<void> {
           <h3>Create user</h3>
           <label>Username<input name="username" required /></label>
           <label>Password<input name="password" type="password" minlength="8" required /></label>
-          <label>VM<select name="vmId">${vmOptions}</select></label>
+          <label>Workspace<select name="vmId">${vmOptions}</select></label>
           <label class="check-row"><input name="isAdmin" type="checkbox" /> Admin user</label>
           <button type="submit">Create user</button>
         </form>
 
         <form id="reset-password-form" class="admin-form">
-          <h3>Reset password and sync Guacamole</h3>
+          <h3>Reset password</h3>
           <label>User<select name="username" required>${userOptions}</select></label>
           <label>New password<input name="password" type="password" minlength="8" required /></label>
-          <button type="submit">Reset and sync</button>
+          <button type="submit">Reset password</button>
         </form>
 
         <div class="table-wrap">
@@ -373,7 +390,7 @@ async function renderAdmin(message = ""): Promise<void> {
               <tr>
                 <th>User</th>
                 <th>Role</th>
-                <th>Mapped VM</th>
+                <th>Assigned workspace</th>
                 <th>Created</th>
               </tr>
             </thead>
@@ -396,10 +413,10 @@ async function renderAdmin(message = ""): Promise<void> {
         <section class="primary-panel">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">VM registry</p>
-              <h3>${vms.length} registered VM${vms.length === 1 ? "" : "s"}</h3>
+            <p class="eyebrow">Workspace registry</p>
+            <h3>${vms.length} registered workspace${vms.length === 1 ? "" : "s"}</h3>
             </div>
-            <button id="vm-page-inline-button" class="secondary-button" type="button">Open VM Registry</button>
+            <button id="vm-page-inline-button" class="secondary-button" type="button">Open workspaces</button>
           </div>
         </section>
       </div>
@@ -429,7 +446,7 @@ async function renderAdmin(message = ""): Promise<void> {
             isAdmin: form.get("isAdmin") === "on",
           }),
         });
-        await renderAdmin("User created and synced to Guacamole.");
+        await renderAdmin("User created.");
       } catch (error) {
         await renderAdmin(error instanceof Error ? error.message : "User creation failed.");
       }
@@ -446,7 +463,7 @@ async function renderAdmin(message = ""): Promise<void> {
             password: form.get("password"),
           }),
         });
-        await renderAdmin("Password reset and Guacamole sync completed.");
+        await renderAdmin("Password reset.");
       } catch (error) {
         await renderAdmin(error instanceof Error ? error.message : "Password reset failed.");
       }
@@ -467,8 +484,8 @@ async function renderVmRegistry(message = ""): Promise<void> {
         <div class="session-header">
           <div>
             <p class="eyebrow">Admin dashboard</p>
-            <h2>VM Registry</h2>
-            <p class="muted">Register VMs and edit Guacamole/RDP connection configuration.</p>
+            <h2>Workspaces</h2>
+            <p class="muted">Register and maintain cloud workspace connection settings.</p>
           </div>
           <div class="actions compact-actions">
             <button id="users-page-button" class="secondary-button" type="button">Users</button>
@@ -480,19 +497,19 @@ async function renderVmRegistry(message = ""): Promise<void> {
         ${message ? `<p class="notice">${escapeHtml(message)}</p>` : ""}
 
         <form id="create-vm-form" class="admin-form">
-          <h3>Register VM</h3>
-          <label>VM ID<input name="id" required /></label>
+          <h3>Register workspace</h3>
+          <label>Workspace ID<input name="id" required /></label>
           ${vmFormFields()}
-          <button type="submit">Register VM</button>
+          <button type="submit">Register workspace</button>
         </form>
 
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>VM</th>
+                <th>Workspace</th>
                 <th>Host</th>
-                <th>RDP User</th>
+                <th>Remote User</th>
                 <th>Security</th>
                 <th>Status</th>
               </tr>
@@ -507,13 +524,13 @@ async function renderVmRegistry(message = ""): Promise<void> {
                             <td>${escapeHtml(vm.name)}<br /><span class="muted small-text">${escapeHtml(vm.id)}</span></td>
                             <td>${escapeHtml(vm.host)}</td>
                             <td>${escapeHtml(vm.rdpUsername ?? "-")}</td>
-                            <td>${escapeHtml(vm.security)}</td>
+                            <td>${escapeHtml(displaySecurity(vm.security))}</td>
                             <td>${escapeHtml(vm.status)}</td>
                           </tr>
                         `,
                       )
                       .join("")
-                  : `<tr><td colspan="5">No VMs registered yet.</td></tr>`
+                  : `<tr><td colspan="5">No workspaces registered yet.</td></tr>`
               }
             </tbody>
           </table>
@@ -526,7 +543,7 @@ async function renderVmRegistry(message = ""): Promise<void> {
                 <form class="admin-form edit-vm-form" data-vm-id="${escapeHtml(vm.id)}">
                   <h3>Edit ${escapeHtml(vm.name)}</h3>
                   ${vmFormFields(vm)}
-                  <button type="submit">Save VM config</button>
+                  <button type="submit">Save workspace</button>
                 </form>
               `,
             )
@@ -555,9 +572,9 @@ async function renderVmRegistry(message = ""): Promise<void> {
             ...vmPayload(form),
           }),
         });
-        await renderVmRegistry("VM registered and synced to Guacamole.");
+        await renderVmRegistry("Workspace registered.");
       } catch (error) {
-        await renderVmRegistry(error instanceof Error ? error.message : "VM registration failed.");
+        await renderVmRegistry(error instanceof Error ? error.message : "Workspace registration failed.");
       }
     });
 
@@ -572,14 +589,14 @@ async function renderVmRegistry(message = ""): Promise<void> {
             method: "PUT",
             body: JSON.stringify(vmPayload(form)),
           });
-          await renderVmRegistry("VM configuration updated and synced to Guacamole.");
+          await renderVmRegistry("Workspace configuration updated.");
         } catch (error) {
-          await renderVmRegistry(error instanceof Error ? error.message : "VM update failed.");
+          await renderVmRegistry(error instanceof Error ? error.message : "Workspace update failed.");
         }
       });
     });
   } catch (error) {
-    renderLogin(error instanceof Error ? error.message : "VM registry access failed");
+    renderLogin(error instanceof Error ? error.message : "Workspace registry access failed");
   }
 }
 
